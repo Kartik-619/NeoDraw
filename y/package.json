@@ -1,5 +1,5 @@
 {
-  "name": "NeoDraw",
+  "name": "y",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -10,15 +10,11 @@
   },
   "devDependencies": {
     "prettier": "^3.7.4",
-    "turbo": "^2.8.12",
+    "turbo": "^2.8.13",
     "typescript": "5.9.2"
   },
+  "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=18"
-  },
-  "packageManager": "npm@11.0.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ]
+  }
 }
