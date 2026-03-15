@@ -15,5 +15,8 @@
     "@repo/typescript-config": "workspace:*",
     "@types/ws": "^8.18.1",
     "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@repo/backend-common":"workspace:*"
   }
 }
