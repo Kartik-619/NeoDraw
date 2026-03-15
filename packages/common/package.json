@@ -2,7 +2,7 @@
   "name": "@repo/common",
   "version": "1.0.0",
   "exports":{
-    "./types":"./src/types"
+    "./types":"./src/types.ts"
   },
   "main": "index.js",
   "scripts": {
