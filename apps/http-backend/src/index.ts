@@ -3,12 +3,12 @@ import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
 import { middleware } from "./middleware";
 import { CreateUserSchema, CreateRoomSchema, SignInSchema } from "@repo/common/types";
-
+import { prisma } from "@repo/db/client"
 
 const app = express();
 app.use(express.json());
 
-app.post("/signup", (req, res) => {
+app.post("/signup", async(req, res) => {
     //dbcall
     const data = CreateUserSchema.safeParse(req.body);
     if (!data.success) {
@@ -16,9 +16,22 @@ app.post("/signup", (req, res) => {
             message: "invalid inputs"
         });
     }
-    return res.json({
+    try{   
+        await prisma.user.create({
+            data:{
+                email:data.data?.username,
+                password:data.data.password,
+                name:data.data.name,
+            }
+        })
+        
+        
+        return res.json({
         userdId: '123'
-    })
+        });
+    }catch(e){
+
+    }
 
 })
 
