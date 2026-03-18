@@ -14,6 +14,7 @@
   "type": "commonjs",
   "description": "",
   "dependencies": {
+    "dotenv": "^17.3.1",
     "prisma": "^7.5.0"
   }
 }
