@@ -8,7 +8,7 @@
     return response.data.room.id;
  }
 
-export default async function({
+export default async function ChatRoom1({
     params
 }: {
     params: {
