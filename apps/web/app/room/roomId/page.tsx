@@ -16,6 +16,7 @@ export default async function ChatRoom1({
     }
 }) {
     const parsedParams=(await params);
+    console.log(parsedParams);
      const slug = (await params).slug;
      const roomId = await getRoomId(slug);
     
