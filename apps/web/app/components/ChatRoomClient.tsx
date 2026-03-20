@@ -26,6 +26,9 @@ export function ChatRoomClient({
             socket.onmessage = (event) => {
                 const parsedData = JSON.parse(event.data);
                 if (parsedData.type === "chat") {
+
+                    //eans: take the current array of chats (), spread it out, and add a new object at the end.
+                    //	This ensures React re-renders with the updated chat list.
                     setChats(c => [...c, {message: parsedData.message}])
                 }
             }
