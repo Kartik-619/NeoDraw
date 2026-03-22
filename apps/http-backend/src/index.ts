@@ -51,7 +51,7 @@ app.post("/signIn", async(req, res) => {
     // TODO: Compare the hashed pws here
     const user = await prisma.user.findFirst({
         where: {
-            email: parsedData.data.username,
+            email: parsedData.data.name,
             password: parsedData.data.password
         }
     })
