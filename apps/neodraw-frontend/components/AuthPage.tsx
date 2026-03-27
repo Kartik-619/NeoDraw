@@ -5,19 +5,19 @@ import axios from "axios";
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
-    const [email,setEmail] = useState("")
-    const [password,setPassword] = useState("")
-
-    async function handleAuth(){
+    const [email, setEmail] = useState("")
+    const [password, setPassword] = useState("")
+    const [name, setName] = useState("")
+    async function handleAuth() {
         const endpoint = isSignin ? "signIn" : "signup"
+        const body = isSignin
+            ? { email, password }
+            : { email, name,password }
 
-        const res = await axios.post(`http://localhost:3008/${endpoint}`,{
-            email,
-            password
-        })
+        const res = await axios.post(`http://localhost:3008/${endpoint}`, body);
 
-        localStorage.setItem("token",res.data.token)
-        window.location.href="/"
+        localStorage.setItem("token", res.data.token)
+        window.location.href = "/"
     }
 
     return (
@@ -25,25 +25,30 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
             <div className="p-6 m-2 bg-white rounded">
 
                 <div className="p-2">
-                    <input 
+                    <input
                         type="text"
                         placeholder="Email"
                         className="border p-2"
-                        onChange={(e)=>setEmail(e.target.value)}
+                        onChange={(e) => setEmail(e.target.value)}
                     />
                 </div>
-
+                <div className="p-2"><input
+                    type="text"
+                    placeholder="Name"
+                    className="border p-2"
+                    onChange={(e) => setName(e.target.value)}
+                /></div>
                 <div className="p-2">
-                    <input 
+                    <input
                         type="password"
                         placeholder="Password"
                         className="border p-2"
-                        onChange={(e)=>setPassword(e.target.value)}
+                        onChange={(e) => setPassword(e.target.value)}
                     />
                 </div>
 
                 <div className="pt-2">
-                    <button 
+                    <button
                         className="bg-red-200 rounded p-2"
                         onClick={handleAuth}
                     >

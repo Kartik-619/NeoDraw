@@ -123,7 +123,7 @@ app.get("/chats/:roomId", async (req,res)=>{
     }
 });
 app.get("/room/:slug", async (req,res)=>{
-    const slug=Number(req.params.slug);
+    const slug=req.params.slug;
     const room=await prisma.rooms.findFirst({
         where:{
             slug
