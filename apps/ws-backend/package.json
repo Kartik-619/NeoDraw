@@ -6,10 +6,10 @@
   "author": "",
   "type": "commonjs",
   "main": "index.js",
-  "scripts": {
+"scripts": {
     "build": "tsc -b",
     "start": "node ./dist/index.js",
-    "dev": "npm run build && npm run dev"
+    "dev": "tsc -b --watch" 
   },
   "dependencies": {
     "@repo/typescript-config": "workspace:*",
@@ -19,8 +19,10 @@
     "jsonwebtoken": "^9.0.3",
     "ws": "^8.19.0"
   },
-  "devDependencies": {
+ "devDependencies": {
+    "typescript": "5.9.2",
+    "@types/node": "^22.15.3",
     "@repo/backend-common": "workspace:*",
-    "@repo/db":"workspace:*"
+    "@repo/db": "workspace:*"
   }
 }
