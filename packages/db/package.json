@@ -11,7 +11,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "prisma generate && tsc && node -e \"require('fs').cpSync('src/generated', 'dist/generated', {recursive: true})\"",
     "generate": "prisma generate",
     "clean": "rm -rf dist",
     "dev": "tsc --watch"

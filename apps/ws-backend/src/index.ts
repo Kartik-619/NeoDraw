@@ -70,7 +70,7 @@ wss.on('connection', function connection(ws, request) {
       if (!user) {
         return;
       }
-      user.rooms = user?.rooms.filter(x => x === parsedData.room);
+      user.rooms = user?.rooms.filter(x => x !== parsedData.roomId);
     }
 
     console.log("message received")
@@ -101,4 +101,11 @@ wss.on('connection', function connection(ws, request) {
 
   });
 
+  
+  ws.on("close", () => {
+    const index = users.findIndex(x => x.ws === ws);
+    if (index !== -1) {
+      users.splice(index, 1);
+    }
+  });
 });
