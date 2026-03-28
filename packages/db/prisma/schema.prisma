@@ -9,11 +9,12 @@ datasource db {
 
 model User {
   id       String @id @default(uuid())
-  email    String @unique
+  email    String
   password String
   name     String
-  rooms    Room[]
+  photo    String
   chats    Chat[]
+  rooms    Room[]
 }
 
 model Room {
@@ -21,8 +22,8 @@ model Room {
   slug      String   @unique
   createdAt DateTime @default(now())
   adminId   String
-  admin     User     @relation(fields: [adminId], references: [id])
   chat      Chat[]
+  admin     User     @relation(fields: [adminId], references: [id])
 }
 
 model Chat {
@@ -30,8 +31,6 @@ model Chat {
   roomId  Int
   message String
   userId  String
-  room    Room @relation(fields: [roomId], references: [id])
-  user    User @relation(fields: [userId], references: [id])
+  room    Room   @relation(fields: [roomId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
 }
-
-
