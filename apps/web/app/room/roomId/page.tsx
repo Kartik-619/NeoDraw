@@ -2,6 +2,7 @@
  import { BACKEND_URL } from "../../config";
  import { ChatRoom } from "../../components/ChatRoom";
 
+ export const dynamic = 'force-dynamic';
  async function getRoomId(slug: string) {
     const response = await axios.get(`${BACKEND_URL}/room/${slug}`)
     console.log(response.data);
