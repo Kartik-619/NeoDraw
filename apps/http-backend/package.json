@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc -b",
     "start": "tsc -b && node ./dist/index.js",
-"dev": "tsc --watch --preserveWatchOutput && node dist/index.js"  },
+"dev": "tsc  && node dist/index.js"  },
   "dependencies": {
     "@repo/backend-common": "workspace:*",
     "@repo/db": "workspace:*",

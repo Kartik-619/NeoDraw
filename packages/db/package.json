@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
+    "dev": "tsc ",
     "clean": "rm -rf dist",
     "typeorm": "typeorm-ts-node-commonjs",
     "migration:generate": "typeorm migration:generate -d src/data-source.ts",
