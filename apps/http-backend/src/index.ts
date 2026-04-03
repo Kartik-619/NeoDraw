@@ -153,7 +153,7 @@ app.get("/rooms/:slug/chats", async (req, res) => {
 
         const messages = await db.chats().find({
             where: {
-                roomId: room.id // ✅ Use direct column
+                roomId: (room.id )// ✅ Use direct column
             },
             order: { createdAt: "DESC" },
             take: 50
