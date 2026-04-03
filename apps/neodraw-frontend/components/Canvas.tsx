@@ -3,10 +3,10 @@
 import { initDraw } from "@/draw";
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./IconButton";
-import { Circle, Pencil, RectangleHorizontalIcon } from "lucide-react";
+import { Circle, Pencil, RectangleHorizontalIcon, Diamond, Eraser } from "lucide-react";
 import { Game } from "@/draw/Game";
 
-export type Tool = "circle" | "rect" | "pencil";
+export type Tool = "circle" | "rect" | "pencil" | "diamond" | "eraser";
 
 export function Canvas({
     roomId,
@@ -71,6 +71,7 @@ export function Canvas({
                 height: "100vh",
                 width: "100vw",
                 overflow: "hidden",
+                backgroundColor:'#fcfefe',
                 position: "relative"
             }}
         >
@@ -81,7 +82,9 @@ export function Canvas({
                 style={{
                     display: "block",
                     width: "100%",
-                    height: "100%"
+                    height: "100%",
+                    backgroundColor:'#fcfefe',
+                    cursor: selectedTool === "eraser" ? "cell" : "crosshair"
                 }}
             />
             <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} />
@@ -98,29 +101,37 @@ function Topbar({selectedTool, setSelectedTool}: {
             position: "fixed",
             top: 10,
             left: 10,
-            zIndex: 10
+            zIndex: 10,
+            backgroundColor: "rgba(186, 174, 174, 0.7)",
+            padding: "2px",
+            borderRadius: "2rem",
+            backdropFilter: "blur(8px)"
         }}>
-            <div className="flex gap-t">
+            <div style={{ display: "flex", gap: "8px" }}>
                 <IconButton 
-                    onClick={() => {
-                        setSelectedTool("pencil")
-                    }}
+                    onClick={() => setSelectedTool("pencil")}
                     activated={selectedTool === "pencil"}
-                    icon={<Pencil />}
+                    icon={<Pencil size={20} />}
                 />
                 <IconButton 
-                    onClick={() => {
-                        setSelectedTool("rect")
-                    }} 
+                    onClick={() => setSelectedTool("rect")}
                     activated={selectedTool === "rect"} 
-                    icon={<RectangleHorizontalIcon />} 
+                    icon={<RectangleHorizontalIcon size={20} />} 
                 />
                 <IconButton 
-                    onClick={() => {
-                        setSelectedTool("circle")
-                    }} 
+                    onClick={() => setSelectedTool("circle")}
                     activated={selectedTool === "circle"} 
-                    icon={<Circle />}
+                    icon={<Circle size={20} />}
+                />
+                <IconButton 
+                    onClick={() => setSelectedTool("diamond")}
+                    activated={selectedTool === "diamond"} 
+                    icon={<Diamond size={20} />}
+                />
+                <IconButton 
+                    onClick={() => setSelectedTool("eraser")}
+                    activated={selectedTool === "eraser"} 
+                    icon={<Eraser size={20} />}
                 />
             </div>
         </div>
