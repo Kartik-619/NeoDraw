@@ -1,3 +1,4 @@
+// In packages/db/src/entities/Chat.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
 import { Room } from "./Room";
 import { User } from "./User";
@@ -8,13 +9,13 @@ export class Chat {
   id: string;
 
   @Column()
-  roomId: number;
-
-  @Column()
   message: string;
 
   @Column()
   userId: string;
+
+  @Column() // Add this column
+  roomId: number;
 
   @CreateDateColumn()
   createdAt: Date;

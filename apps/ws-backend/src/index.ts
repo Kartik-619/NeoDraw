@@ -85,7 +85,7 @@ wss.on('connection', function connection(ws, request) {
         // Save chat to database using TypeORM
         const chatRepo = db.chats();
         const chat = chatRepo.create({
-          roomId: Number(roomId),
+          roomId: roomId,
           message,
           userId
         });

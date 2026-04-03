@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
     const [email, setEmail] = useState("");
+    const [signed,setSigned]=useState(false);
     const [password, setPassword] = useState("");
     const [name, setName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -25,7 +26,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
             
             if (isSignin) {
                 localStorage.setItem("token", res.data.token);
-                router.push("/")
+                router.push(`/canvas/${res.data.slug}`);
             } else {
                 // After signup, you might want to redirect to signin
                 if (res.data.userdId) {

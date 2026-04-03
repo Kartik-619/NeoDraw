@@ -16,10 +16,10 @@ export class Room {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @Column()
+  @Column({ nullable: true })
   adminId: string;
-
-  @ManyToOne(() => User, (user) => user.rooms)
+  
+  @ManyToOne(() => User, (user) => user.rooms, { nullable: true })
   admin: User;
 
   @OneToMany(() => Chat, (chat) => chat.room)

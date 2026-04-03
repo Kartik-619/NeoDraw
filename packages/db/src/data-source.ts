@@ -13,7 +13,7 @@ export const AppDataSource = new DataSource({
   type: "postgres",
   url: process.env.DATABASE_URL,
   synchronize: true, // Auto-creates tables (like Prisma db push)
-  logging: true, // See SQL queries in console
+  logging: false, // See SQL queries in console
   entities: [User, Room, Chat],
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
