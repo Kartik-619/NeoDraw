@@ -98,9 +98,9 @@ function Topbar({selectedTool, setSelectedTool}: {
 }) {
     return (
         <div style={{
-            position: "fixed",
+            position: "absolute",
+            justifySelf:'center',
             top: 10,
-            left: 10,
             zIndex: 10,
             backgroundColor: "rgba(186, 174, 174, 0.7)",
             padding: "2px",
