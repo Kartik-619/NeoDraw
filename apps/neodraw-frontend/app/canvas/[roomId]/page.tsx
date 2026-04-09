@@ -2,25 +2,57 @@
 import axios from "axios";
 import { HTTP_BACKEND } from "@/config";
 import { RoomCanvas } from "@/components/RoomCanvas";
+import { notFound } from 'next/navigation';
 
-async function getRoom(slug: string) {
-    const res = await axios.get(`${HTTP_BACKEND}/room/${slug}`);
-    
-    if (!res.data.room) {
-        throw new Error("Room not found");
-    }
-    console.log("Room data:", res.data);
-    return res.data.room; // Return the entire room object
+// ✅ Generate static params for known rooms (optional)
+export async function generateStaticParams() {
+    // If you have a way to fetch all room slugs
+    // Otherwise return empty array
+    return [];
 }
 
-export default async function CanvasPage({
-    params
-}: {
-    params: { roomId: string } // This is actually the slug
-}) {
-    const slug = params.roomId;
-    const room = await getRoom(slug);
+async function getRoom(slug: string) {
+    try {
+        const res = await axios.get(`${HTTP_BACKEND}/room/${slug}`, {
+            timeout: 5000
+        });
+        
+        if (!res.data.room) {
+            return null;
+        }
+        return res.data.room;
+    } catch (error) {
+        console.error("Error fetching room:", error);
+        return null;
+    }
+}
+
+// ✅ Use correct typing for Next.js 15
+interface PageProps {
+    params: Promise<{
+        roomId: string;
+    }>;
+}
+
+export default async function CanvasPage({ params }: PageProps) {
+    // ✅ Must await params
+    const { roomId } = await params;
     
-    // Pass the slug as roomId since that's what the WebSocket expects
-    return <RoomCanvas roomId={slug} />;
+    console.log("CanvasPage - roomId from params:", roomId);
+    
+    // ✅ Validate immediately
+    if (!roomId || roomId === "undefined") {
+        console.error("Invalid roomId:", roomId);
+        notFound();
+    }
+    
+    // Fetch room data
+    const room = await getRoom(roomId);
+    
+    if (!room) {
+        notFound();
+    }
+    
+    // ✅ Pass valid roomId
+    return <RoomCanvas roomId={roomId} />;
 }

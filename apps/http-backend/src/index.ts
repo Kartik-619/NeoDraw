@@ -41,6 +41,7 @@ app.post("/signup", async (req, res) => {
     res.status(201).json({ userId: user.id });
 });
 
+// In your Express backend - update the signIn endpoint
 app.post("/signIn", async (req, res) => {
     const parsedData = SignInSchema.safeParse(req.body);
     if (!parsedData.success) {
@@ -56,8 +57,25 @@ app.post("/signIn", async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+    
+    // ✅ Get or create a default room for the user
+    let defaultRoom = await db.rooms().findOne({
+        where: { slug: `${user.id}-workspace` }
+    });
+    
+    if (!defaultRoom) {
+        defaultRoom = db.rooms().create({
+            slug: `${user.id}-workspace`,
+            adminId: user.id
+        });
+        await db.rooms().save(defaultRoom);
+    }
 
-    res.json({ token });
+    // ✅ Return both token and default room slug
+    res.json({ 
+        token,
+        slug: defaultRoom.slug  // Add this
+    });
 });
 
 /* =========================

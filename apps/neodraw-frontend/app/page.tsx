@@ -5,7 +5,7 @@ import Link from "next/link";
 
 function App() {
   return (
-    <div className="min-h-screen bg-white text-black antialiased">
+    <div className="min-h-screen overflow-hidden bg-white text-black antialiased">
       
       {/* Hero Section */}
       <header className="relative overflow-hidden border-b border-black/10">

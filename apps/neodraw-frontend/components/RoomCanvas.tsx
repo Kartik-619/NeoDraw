@@ -9,9 +9,13 @@ export function RoomCanvas({roomId}: {roomId: string}) {
     const [socket, setSocket] = useState<WebSocket | null>(null);
 
     useEffect(() => {
+        if (!roomId) {
+            console.error('Room ID is required for WebSocket connection');
+            return;
+          }
+          
         const token = localStorage.getItem("token");
-        
-        if (!token) {
+            if (!token) {
             console.error("No token found");
             return;
         }
