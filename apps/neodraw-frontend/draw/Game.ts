@@ -46,6 +46,7 @@ export class Game {
     private offsetX: number = 0;
     private offsetY: number = 0;
     private eraserRadius: number = 20;
+    private isInitialized: boolean = false;
 
     socket: WebSocket;
 
@@ -110,21 +111,6 @@ export class Game {
         this.ctx.lineTo(x, y + height / 2); // Left point
         this.ctx.closePath();
         this.ctx.stroke();
-    }
-
-    // Erase area (draw white rectangle)
-    private eraseArea(x: number, y: number, width: number, height: number) {
-        // Save current stroke style
-        const previousStrokeStyle = this.ctx.strokeStyle;
-        const previousFillStyle = this.ctx.fillStyle;
-        
-        // Erase by drawing white rectangle
-        this.ctx.fillStyle = "rgba(0, 0, 0)";
-        this.ctx.fillRect(x, y, width, height);
-        
-        // Restore styles
-        this.ctx.strokeStyle = previousStrokeStyle;
-        this.ctx.fillStyle = previousFillStyle;
     }
 
     // Check if a point is inside a shape (for eraser)
@@ -198,57 +184,169 @@ export class Game {
     }
 
     async init() {
-        this.existingShapes = await getExistingShapes(this.roomId);
-        console.log(this.existingShapes);
-        this.clearCanvas();
+        try {
+            this.existingShapes = await getExistingShapes(this.roomId);
+            // Ensure existingShapes is an array and filter out any invalid shapes
+            if (!Array.isArray(this.existingShapes)) {
+                this.existingShapes = [];
+            }
+            this.existingShapes = this.existingShapes.filter(shape => shape && typeof shape === 'object' && shape.type);
+            console.log('Initialized shapes:', this.existingShapes.length);
+            this.isInitialized = true;
+            this.clearCanvas();
+        } catch (error) {
+            console.error('Failed to initialize shapes:', error);
+            this.existingShapes = [];
+            this.isInitialized = true;
+            this.clearCanvas();
+        }
     }
 
     initHandlers() {
         this.socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+            if (!this.isInitialized) return;
+            
+            try {
+                const message = JSON.parse(event.data);
 
-            if (message.type == "chat") {
-                const parsedShape = JSON.parse(message.message);
-                this.existingShapes.push(parsedShape.shape);
-                this.clearCanvas();
+                if (message.type == "chat") {
+                    const parsedData = JSON.parse(message.message);
+                    
+                    // Handle eraser action from other users
+                    if (parsedData.action === "erase") {
+                        console.log('Received eraser action');
+                        
+                        if (parsedData.updatedShapes && Array.isArray(parsedData.updatedShapes)) {
+                            // Use the updated shapes sent by the erasing client
+                            this.existingShapes = parsedData.updatedShapes;
+                        } else if (parsedData.eraserRect) {
+                            // Apply the same eraser logic locally
+                            const { eraserRect } = parsedData;
+                            this.existingShapes = this.existingShapes.filter(shape => {
+                                // Skip undefined shapes
+                                if (!shape || typeof shape !== 'object') return false;
+                                
+                                // Check if shape intersects with eraser rectangle
+                                if (shape.type === "rect") {
+                                    return !(eraserRect.x < shape.x + shape.width &&
+                                           eraserRect.x + eraserRect.width > shape.x &&
+                                           eraserRect.y < shape.y + shape.height &&
+                                           eraserRect.y + eraserRect.height > shape.y);
+                                } else if (shape.type === "circle") {
+                                    const circleBox = {
+                                        x: shape.centerX - shape.radius,
+                                        y: shape.centerY - shape.radius,
+                                        width: shape.radius * 2,
+                                        height: shape.radius * 2
+                                    };
+                                    return !(eraserRect.x < circleBox.x + circleBox.width &&
+                                           eraserRect.x + eraserRect.width > circleBox.x &&
+                                           eraserRect.y < circleBox.y + circleBox.height &&
+                                           eraserRect.y + eraserRect.height > circleBox.y);
+                                } else if (shape.type === "diamond") {
+                                    const diamondBox = {
+                                        x: shape.centerX - shape.width/2,
+                                        y: shape.centerY - shape.height/2,
+                                        width: shape.width,
+                                        height: shape.height
+                                    };
+                                    return !(eraserRect.x < diamondBox.x + diamondBox.width &&
+                                           eraserRect.x + eraserRect.width > diamondBox.x &&
+                                           eraserRect.y < diamondBox.y + diamondBox.height &&
+                                           eraserRect.y + eraserRect.height > diamondBox.y);
+                                } else if (shape.type === "pencil") {
+                                    // For pencil, check if the line intersects with eraser rectangle
+                                    const minX = Math.min(shape.startX, shape.endX);
+                                    const maxX = Math.max(shape.startX, shape.endX);
+                                    const minY = Math.min(shape.startY, shape.endY);
+                                    const maxY = Math.max(shape.startY, shape.endY);
+                                    
+                                    return !(eraserRect.x < maxX &&
+                                           eraserRect.x + eraserRect.width > minX &&
+                                           eraserRect.y < maxY &&
+                                           eraserRect.y + eraserRect.height > minY);
+                                }
+                                return true;
+                            });
+                        }
+                        
+                        this.clearCanvas();
+                    } 
+                    // Handle new shape
+                    else if (parsedData.shape && parsedData.shape.type) {
+                        this.existingShapes.push(parsedData.shape);
+                        this.clearCanvas();
+                    }
+                }
+            } catch (error) {
+                console.error('Error processing WebSocket message:', error);
             }
         }
     }
 
     clearCanvas() {
+        // Clear canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.ctx.fillStyle = "rgba(0, 0, 0)";
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-        // Set stroke style for all shapes
+        
+        // Safety check: ensure existingShapes is an array
+        if (!Array.isArray(this.existingShapes)) {
+            console.error('existingShapes is not an array:', this.existingShapes);
+            this.existingShapes = [];
+            return;
+        }
+        
+        // Filter out invalid shapes
+        const validShapes = this.existingShapes.filter(shape => {
+            if (!shape || typeof shape !== 'object') {
+                console.warn('Invalid shape (not an object):', shape);
+                return false;
+            }
+            if (!shape.type || typeof shape.type !== 'string') {
+                console.warn('Shape missing type property:', shape);
+                return false;
+            }
+            return true;
+        });
+        
+        // Set drawing styles
         this.ctx.strokeStyle = "rgba(255, 255, 255)";
         this.ctx.lineWidth = 2;
         this.ctx.fillStyle = "rgba(255, 255, 255)";
-
-        this.existingShapes.forEach((shape) => {
-            if (shape.type === "rect") {
-                this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
-            } else if (shape.type === "circle") {
-                this.ctx.beginPath();
-                this.ctx.arc(shape.centerX, shape.centerY, Math.abs(shape.radius), 0, Math.PI * 2);
-                this.ctx.stroke();
-                this.ctx.closePath();                
-            } else if (shape.type === "pencil") {
-                this.ctx.beginPath();
-                this.ctx.moveTo(shape.startX, shape.startY);
-                this.ctx.lineTo(shape.endX, shape.endY);
-                this.ctx.stroke();
-                this.ctx.closePath();
-            } else if (shape.type === "diamond") {
-                this.drawDiamond(shape.centerX - shape.width/2, shape.centerY - shape.height/2, shape.width, shape.height);
-            } else if (shape.type === "eraser") {
-                // Skip drawing eraser shapes as they just remove other shapes
-                // Or draw a visual indicator if needed
-                this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-                this.ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
-                this.ctx.fillStyle = "rgba(255, 255, 255)";
+        
+        // Draw all valid shapes
+        validShapes.forEach((shape, index) => {
+            try {
+                if (shape.type === "rect") {
+                    this.ctx.strokeRect(shape.x, shape.y, shape.width, shape.height);
+                } else if (shape.type === "circle") {
+                    this.ctx.beginPath();
+                    this.ctx.arc(shape.centerX, shape.centerY, Math.abs(shape.radius), 0, Math.PI * 2);
+                    this.ctx.stroke();
+                    this.ctx.closePath();                
+                } else if (shape.type === "pencil") {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(shape.startX, shape.startY);
+                    this.ctx.lineTo(shape.endX, shape.endY);
+                    this.ctx.stroke();
+                    this.ctx.closePath();
+                } else if (shape.type === "diamond") {
+                    this.drawDiamond(shape.centerX - shape.width/2, shape.centerY - shape.height/2, shape.width, shape.height);
+                } else if (shape.type === "eraser") {
+                    this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+                    this.ctx.fillRect(shape.x, shape.y, shape.width, shape.height);
+                    this.ctx.fillStyle = "rgba(255, 255, 255)";
+                }
+            } catch (drawError) {
+                console.error(`Error drawing shape at index ${index}:`, drawError, shape);
             }
         });
+        
+        // Log if we filtered out any shapes
+        if (validShapes.length !== this.existingShapes.length) {
+            console.warn(`Filtered out ${this.existingShapes.length - validShapes.length} invalid shapes`);
+        }
     }
 
     mouseDownHandler = (e: MouseEvent) => {
@@ -272,10 +370,10 @@ export class Game {
         if (selectedTool === "rect") {
             shape = {
                 type: "rect",
-                x: this.startX,
-                y: this.startY,
-                height,
-                width
+                x: Math.min(this.startX, x),
+                y: Math.min(this.startY, y),
+                height: Math.abs(height),
+                width: Math.abs(width)
             }
         } else if (selectedTool === "circle") {
             const radius = Math.max(Math.abs(width), Math.abs(height)) / 2;
@@ -312,55 +410,77 @@ export class Game {
                 height: Math.abs(height)
             };
             
-            // Filter out shapes that intersect with eraser
-            this.existingShapes = this.existingShapes.filter(shape => {
-                // Check if shape intersects with eraser rectangle
-                if (shape.type === "rect") {
-                    return !(eraserRect.x < shape.x + shape.width &&
-                           eraserRect.x + eraserRect.width > shape.x &&
-                           eraserRect.y < shape.y + shape.height &&
-                           eraserRect.y + eraserRect.height > shape.y);
-                } else if (shape.type === "circle") {
-                    // Simple bounding box check for circles
-                    const circleBox = {
-                        x: shape.centerX - shape.radius,
-                        y: shape.centerY - shape.radius,
-                        width: shape.radius * 2,
-                        height: shape.radius * 2
-                    };
-                    return !(eraserRect.x < circleBox.x + circleBox.width &&
-                           eraserRect.x + eraserRect.width > circleBox.x &&
-                           eraserRect.y < circleBox.y + circleBox.height &&
-                           eraserRect.y + eraserRect.height > circleBox.y);
-                } else if (shape.type === "diamond") {
-                    const diamondBox = {
-                        x: shape.centerX - shape.width/2,
-                        y: shape.centerY - shape.height/2,
-                        width: shape.width,
-                        height: shape.height
-                    };
-                    return !(eraserRect.x < diamondBox.x + diamondBox.width &&
-                           eraserRect.x + eraserRect.width > diamondBox.x &&
-                           eraserRect.y < diamondBox.y + diamondBox.height &&
-                           eraserRect.y + eraserRect.height > diamondBox.y);
-                } else if (shape.type === "pencil") {
-                    // For lines, check if any point is near the line
-                    return true; // Keep pencil lines for now
-                }
-                return true;
-            });
-            
-            this.clearCanvas();
-            
-            // Send eraser action to other users
-            this.socket.send(JSON.stringify({
-                type: "chat",
-                message: JSON.stringify({
-                    action: "erase",
-                    eraserRect
-                }),
-                roomId: this.roomId
-            }));
+            // Only apply eraser if the rectangle has some area
+            if (eraserRect.width > 0 && eraserRect.height > 0) {
+                // Filter out shapes that intersect with eraser
+                const beforeCount = this.existingShapes.length;
+                
+                this.existingShapes = this.existingShapes.filter(shape => {
+                    // Skip undefined or invalid shapes
+                    if (!shape || typeof shape !== 'object') {
+                        return false;
+                    }
+                    
+                    // Check if shape intersects with eraser rectangle
+                    if (shape.type === "rect") {
+                        return !(eraserRect.x < shape.x + shape.width &&
+                               eraserRect.x + eraserRect.width > shape.x &&
+                               eraserRect.y < shape.y + shape.height &&
+                               eraserRect.y + eraserRect.height > shape.y);
+                    } else if (shape.type === "circle") {
+                        // Simple bounding box check for circles
+                        const circleBox = {
+                            x: shape.centerX - shape.radius,
+                            y: shape.centerY - shape.radius,
+                            width: shape.radius * 2,
+                            height: shape.radius * 2
+                        };
+                        return !(eraserRect.x < circleBox.x + circleBox.width &&
+                               eraserRect.x + eraserRect.width > circleBox.x &&
+                               eraserRect.y < circleBox.y + circleBox.height &&
+                               eraserRect.y + eraserRect.height > circleBox.y);
+                    } else if (shape.type === "diamond") {
+                        const diamondBox = {
+                            x: shape.centerX - shape.width/2,
+                            y: shape.centerY - shape.height/2,
+                            width: shape.width,
+                            height: shape.height
+                        };
+                        return !(eraserRect.x < diamondBox.x + diamondBox.width &&
+                               eraserRect.x + eraserRect.width > diamondBox.x &&
+                               eraserRect.y < diamondBox.y + diamondBox.height &&
+                               eraserRect.y + eraserRect.height > diamondBox.y);
+                    } else if (shape.type === "pencil") {
+                        // For lines, check if the line segment intersects with eraser rectangle
+                        const minX = Math.min(shape.startX, shape.endX);
+                        const maxX = Math.max(shape.startX, shape.endX);
+                        const minY = Math.min(shape.startY, shape.endY);
+                        const maxY = Math.max(shape.startY, shape.endY);
+                        
+                        return !(eraserRect.x < maxX &&
+                               eraserRect.x + eraserRect.width > minX &&
+                               eraserRect.y < maxY &&
+                               eraserRect.y + eraserRect.height > minY);
+                    }
+                    return true;
+                });
+                
+                const afterCount = this.existingShapes.length;
+                console.log(`Eraser removed ${beforeCount - afterCount} shapes`);
+                
+                this.clearCanvas();
+                
+                // Broadcast the eraser action with updated shapes
+                this.socket.send(JSON.stringify({
+                    type: "chat",
+                    message: JSON.stringify({
+                        action: "erase",
+                        eraserRect,
+                        updatedShapes: this.existingShapes
+                    }),
+                    roomId: this.roomId
+                }));
+            }
             
             return; // Don't add eraser as a shape
         }
@@ -396,7 +516,9 @@ export class Game {
             this.ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
             
             if (this.selectedTool === "rect") {
-                this.ctx.strokeRect(this.startX, this.startY, width, height);   
+                const drawX = width > 0 ? this.startX : x;
+                const drawY = height > 0 ? this.startY : y;
+                this.ctx.strokeRect(drawX, drawY, Math.abs(width), Math.abs(height));   
             } else if (this.selectedTool === "circle") {
                 const radius = Math.max(Math.abs(width), Math.abs(height)) / 2;
                 const centerX = this.startX + (width / 2);
@@ -417,8 +539,10 @@ export class Game {
                 this.drawDiamond(centerX - Math.abs(width)/2, centerY - Math.abs(height)/2, Math.abs(width), Math.abs(height));
             } else if (this.selectedTool === "eraser") {
                 // Show eraser rectangle
+                const drawX = width > 0 ? this.startX : x;
+                const drawY = height > 0 ? this.startY : y;
                 this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-                this.ctx.fillRect(this.startX, this.startY, width, height);
+                this.ctx.fillRect(drawX, drawY, Math.abs(width), Math.abs(height));
             }
         }
     }
