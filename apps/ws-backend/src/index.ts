@@ -32,12 +32,14 @@ function checkUser(token: string): string | null {
     const decoded = jwt.verify(token, JWT_SECRET);
     console.log("Decoded token:", decoded);
 
-    if (typeof decoded == "string") {
+    // ✅ Fix: Check if decoded is an object and has userId property
+    if (typeof decoded === "string") {
       console.log("Token decoded as string");
       return null;
     }
 
-    if (!decoded || !decoded.userId) {
+    // ✅ Fix: Check if decoded is an object and has userId
+    if (!decoded || typeof decoded !== "object" || !decoded.userId) {
       console.log("No userId in token");
       return null;
     }
@@ -47,6 +49,33 @@ function checkUser(token: string): string | null {
   } catch(e) {
     console.error("Token verification error:", e);
     return null;
+  }
+}
+
+// Helper function to get or create room
+async function getOrCreateRoom(slug: string, userId: string) {
+  try {
+    const roomRepo = db.rooms();
+    let room = await roomRepo.findOne({
+      where: { slug: slug }
+    });
+    
+    if (!room) {
+      console.log(`Room "${slug}" not found, creating it...`);
+      room = roomRepo.create({
+        slug: slug,
+        adminId: userId
+      });
+      await roomRepo.save(room);
+      console.log(`Room "${slug}" created successfully with ID: ${room.id}`);
+    } else {
+      console.log(`Room "${slug}" found with ID: ${room.id}`);
+    }
+    
+    return room;
+  } catch (error) {
+    console.error("Error in getOrCreateRoom:", error);
+    throw error;
   }
 }
 
@@ -77,11 +106,13 @@ wss.on('connection', function connection(ws, request) {
     return;
   }
 
-  users.push({
+  const user: User = {
     userId,
     rooms: [],
     ws
-  });
+  };
+  
+  users.push(user);
 
   console.log(`User ${userId} connected. Total users: ${users.length}`);
 
@@ -97,12 +128,8 @@ wss.on('connection', function connection(ws, request) {
     
     let parsedData;
     try {
-      if (typeof data !== "string") {
-        parsedData = JSON.parse(data.toString());
-      } else {
-        parsedData = JSON.parse(data);
-      }
-      console.log("Parsed message:", parsedData);
+      parsedData = JSON.parse(data.toString());
+      console.log("Parsed message type:", parsedData.type);
     } catch (error) {
       console.error("Failed to parse message:", error);
       ws.send(JSON.stringify({
@@ -113,35 +140,27 @@ wss.on('connection', function connection(ws, request) {
     }
 
     if (parsedData.type === "join_room") {
-      const user = users.find(x => x.ws === ws);
+      const userObj = users.find(x => x.ws === ws);
       const roomSlug = parsedData.roomId;
       
       console.log(`User ${userId} trying to join room: ${roomSlug}`);
       
-      if (user && !user.rooms.includes(roomSlug)) {
+      if (userObj && !userObj.rooms.includes(roomSlug)) {
         try {
-          // Verify room exists in database
-          const roomRepo = db.rooms();
-          const room = await roomRepo.findOne({
-            where: { slug: roomSlug }
-          });
+          // ✅ Get or create the room automatically
+          const room = await getOrCreateRoom(roomSlug, userId);
           
-          if (!room) {
-            console.log(`Room "${roomSlug}" not found in database`);
-            ws.send(JSON.stringify({
-              type: "error",
-              message: `Room "${roomSlug}" not found`
-            }));
-            return;
-          }
-          
-          user.rooms.push(roomSlug);
+          userObj.rooms.push(roomSlug);
           ws.send(JSON.stringify({
             type: "joined_room",
             roomId: roomSlug,
-            message: `Successfully joined room: ${roomSlug}`
+            message: `Successfully joined room: ${roomSlug}`,
+            room: {
+              id: room.id,
+              slug: room.slug
+            }
           }));
-          console.log(`User ${userId} successfully joined room: ${roomSlug}`);
+          console.log(`User ${userId} successfully joined room: ${roomSlug} (ID: ${room.id})`);
         } catch (error) {
           console.error("Error joining room:", error);
           ws.send(JSON.stringify({
@@ -149,16 +168,22 @@ wss.on('connection', function connection(ws, request) {
             message: "Database error while joining room"
           }));
         }
+      } else if (userObj && userObj.rooms.includes(roomSlug)) {
+        console.log(`User ${userId} already in room: ${roomSlug}`);
+        ws.send(JSON.stringify({
+          type: "info",
+          message: `Already in room: ${roomSlug}`
+        }));
       }
     }
 
     if (parsedData.type === "leave_room") {
-      const user = users.find(x => x.ws === ws);
-      if (!user) {
+      const userObj = users.find(x => x.ws === ws);
+      if (!userObj) {
         return;
       }
       const roomSlug = parsedData.roomId;
-      user.rooms = user.rooms.filter(x => x !== roomSlug);
+      userObj.rooms = userObj.rooms.filter(x => x !== roomSlug);
       console.log(`User ${userId} left room: ${roomSlug}`);
     }
 
@@ -169,18 +194,8 @@ wss.on('connection', function connection(ws, request) {
       console.log(`Chat message from ${userId} in room ${roomSlug}: ${message}`);
 
       try {
-        const roomRepo = db.rooms();
-        const room = await roomRepo.findOne({
-          where: { slug: roomSlug }
-        });
-
-        if (!room) {
-          ws.send(JSON.stringify({
-            type: "error",
-            message: `Room "${roomSlug}" not found`
-          }));
-          return;
-        }
+        // Get or create room (ensure it exists)
+        const room = await getOrCreateRoom(roomSlug, userId);
 
         const chatRepo = db.chats();
         const chat = chatRepo.create({
@@ -191,10 +206,13 @@ wss.on('connection', function connection(ws, request) {
         
         await chatRepo.save(chat);
         
-        console.log(`Chat saved successfully`);
+        console.log(`Chat saved successfully to room ${roomSlug}`);
 
+        // Broadcast to all users in the room
+        let broadcastCount = 0;
         users.forEach(user => {
-          if (user.rooms.includes(roomSlug)) {
+          // ✅ Fix: Check if user.ws exists and is open before sending
+          if (user.rooms.includes(roomSlug) && user.ws.readyState === WebSocket.OPEN) {
             user.ws.send(JSON.stringify({
               type: "chat",
               message: message,
@@ -202,8 +220,10 @@ wss.on('connection', function connection(ws, request) {
               userId: userId,
               createdAt: chat.createdAt
             }));
+            broadcastCount++;
           }
         });
+        console.log(`Broadcasted to ${broadcastCount} users in room ${roomSlug}`);
       } catch (error) {
         console.error("Error saving chat:", error);
         ws.send(JSON.stringify({
