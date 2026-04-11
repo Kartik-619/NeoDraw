@@ -14,7 +14,7 @@
     
     # Install deps
     RUN pnpm install --frozen-lockfile
-    
+    RUN pnpm --filter @repo/db build
     # Build backend
     RUN pnpm --filter http-backend build
     
