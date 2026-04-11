@@ -1,0 +1,22 @@
+# Ignore everything by default
+*
+
+# Allow only required files/folders
+!package.json
+!pnpm-lock.yaml
+!turbo.json
+!pnpm-workspace.yaml
+
+# Allow frontend + shared packages
+!apps/neodraw-frontend/**
+!packages/**
+
+# Ignore unwanted stuff inside allowed dirs
+**/node_modules
+**/.next
+**/dist
+**/build
+**/.git
+**/.env*
+**/*.log
+coverage

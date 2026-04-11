@@ -4,6 +4,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation"
+import { HTTP_BACKEND } from "@/config";
 
 export function AuthPage({ isSignin }: { isSignin: boolean }) {
     const [email, setEmail] = useState("");
@@ -24,7 +25,7 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
         try {
             console.log(`Calling ${endpoint} with:`, body);
-            const res = await axios.post(`http://localhost:3008/${endpoint}`, body);
+            const res = await axios.post(`${HTTP_BACKEND}/${endpoint}`, body);
             
             console.log("Response received:", res.data);
             
