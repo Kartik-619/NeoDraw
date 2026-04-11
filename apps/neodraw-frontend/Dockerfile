@@ -5,15 +5,13 @@
     
     RUN npm install -g pnpm
     
-    # Copy only required root files
-    COPY package.json pnpm-lock.yaml turbo.json pnpm-workspace.yaml ./
-    
-    # Copy only necessary parts of monorepo
+    # Copy ONLY what's needed for frontend
+    COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
     COPY apps/neodraw-frontend ./apps/neodraw-frontend
     COPY packages ./packages
     
-    # Install dependencies
-    RUN pnpm install
+    # Install ONLY frontend deps
+    RUN pnpm install --filter neodraw-frontend...
     
     # Build frontend
     RUN pnpm --filter neodraw-frontend build
@@ -24,13 +22,11 @@
     
     WORKDIR /app
     
-    RUN npm install -g pnpm
-    
-    # Copy only built app + deps
-    COPY --from=builder /app/apps/neodraw-frontend ./apps/neodraw-frontend
-    COPY --from=builder /app/node_modules ./node_modules
-    COPY --from=builder /app/package.json ./package.json
+    # Copy standalone output ONLY
+    COPY --from=builder /app/apps/neodraw-frontend/.next/standalone ./
+    COPY --from=builder /app/apps/neodraw-frontend/.next/static ./.next/static
+    COPY --from=builder /app/apps/neodraw-frontend/public ./public
     
     EXPOSE 3000
     
-    CMD ["pnpm", "--filter", "neodraw-frontend", "start"]
+    CMD ["node", "server.js"]

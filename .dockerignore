@@ -10,6 +10,7 @@
 # Allow ONLY required apps
 !apps/neodraw-frontend/**
 !apps/http-backend/**
+!apps/ws-backend/**
 
 # Allow shared packages
 !packages/**
