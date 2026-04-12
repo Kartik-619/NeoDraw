@@ -5,16 +5,19 @@
     
     RUN npm install -g pnpm
     
-    # Copy root configs
+    # Root configs
     COPY package.json pnpm-lock.yaml turbo.json pnpm-workspace.yaml ./
     
     # Copy only required parts
     COPY apps/http-backend ./apps/http-backend
     COPY packages ./packages
     
-    # Install deps
-    RUN pnpm install --frozen-lockfile
+    # Install ONLY needed deps
+    RUN pnpm install --filter http-backend... --frozen-lockfile
+    
+    # Build dependencies
     RUN pnpm --filter @repo/db build
+    
     # Build backend
     RUN pnpm --filter http-backend build
     
@@ -24,15 +27,18 @@
     
     WORKDIR /app
     
-    RUN npm install -g pnpm
+    # ❌ no pnpm needed in production
     
-    # Copy built backend
+    # Copy package.json for prod install
+    COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+    COPY apps/http-backend/package.json ./apps/http-backend/package.json
+    
+    # Install ONLY production deps
+    RUN npm install -g pnpm && pnpm install --prod --filter http-backend...
+    
+    # Copy built files
     COPY --from=builder /app/apps/http-backend/dist ./apps/http-backend/dist
-    COPY --from=builder /app/node_modules ./node_modules
-    COPY --from=builder /app/package.json ./package.json
     
-    # Expose backend port
     EXPOSE 3008
     
-    # Start backend
     CMD ["node", "apps/http-backend/dist/index.js"]
