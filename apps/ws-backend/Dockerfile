@@ -8,14 +8,14 @@
     # Root configs
     COPY package.json pnpm-lock.yaml turbo.json pnpm-workspace.yaml ./
     
-    # Copy required code
+    # Copy only required code
     COPY apps/ws-backend ./apps/ws-backend
     COPY packages ./packages
     
-    # Install deps
-    RUN pnpm install --frozen-lockfile
+    # Install ONLY required deps
+    RUN pnpm install --filter ws-backend... --frozen-lockfile
     
-    # Build shared packages first
+    # Build dependencies
     RUN pnpm --filter @repo/db build
     
     # Build ws backend
@@ -27,14 +27,17 @@
     
     WORKDIR /app
     
-    RUN npm install -g pnpm
+    # Copy minimal package setup
+    COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+    COPY apps/ws-backend/package.json ./apps/ws-backend/package.json
+    
+    # Install ONLY production deps
+    RUN npm install -g pnpm && pnpm install --prod --filter ws-backend...
     
     # Copy built output
     COPY --from=builder /app/apps/ws-backend/dist ./apps/ws-backend/dist
-    COPY --from=builder /app/node_modules ./node_modules
-    COPY --from=builder /app/package.json ./package.json
     
-    # Expose WS port (change if different)
+    # Expose WS port
     EXPOSE 8080
     
     # Start server
