@@ -1,34 +1,28 @@
 import { NextFunction, Request, Response } from "express";
 import { JWT_SECRET } from "@repo/backend-common/config";
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
-// 1. Extend the Express Request type properly
 interface AuthenticatedRequest extends Request {
     userId?: string;
 }
 
 export function middleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-    const authHeader = req.headers["authorization"] ?? "";
-    // Handle both "Bearer <token>" and raw token
-    const token = authHeader.startsWith("Bearer ") ? authHeader.split(" ")[1] : authHeader;
+    const token = req.cookies?.token;
 
-    if (!token || !JWT_SECRET) {
-        res.status(403).json({ message: "Unauthorized: Missing token or config" });
-        return;
+    if (!token) {
+        return res.status(403).json({ message: "Unauthorized: No token" });
     }
 
     try {
-        // 2. Explicitly cast to JwtPayload to access .userId
-        const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+        const decoded: any = jwt.verify(token, JWT_SECRET);
 
-        // 3. Robust check: ensure it's an object and has the property
-        if (typeof decoded !== "string" && decoded.userId) {
-            req.userId = decoded.userId as string;
-            next();
-        } else {
-            res.status(403).json({ message: "Unauthorized: Invalid token payload" });
+        if (!decoded?.userId) {
+            return res.status(403).json({ message: "Invalid token" });
         }
-    } catch (err) {
-        res.status(403).json({ message: "Unauthorized: Token verification failed" });
+
+        req.userId = decoded.userId;
+        next();
+    } catch {
+        res.status(403).json({ message: "Unauthorized" });
     }
 }

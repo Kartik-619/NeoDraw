@@ -18,6 +18,19 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
         setIsLoading(true);
         setError("");
         
+        // Add validation
+        if (!email || !password) {
+            setError("Email and password are required");
+            setIsLoading(false);
+            return;
+        }
+        
+        if (!isSignin && !name) {
+            setError("Name is required");
+            setIsLoading(false);
+            return;
+        }
+        
         const endpoint = isSignin ? "signIn" : "signup";
         const body = isSignin
             ? { email, password }
@@ -26,32 +39,37 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
         try {
             console.log(`Calling ${endpoint} with:`, body);
             const res = await axios.post(`${HTTP_BACKEND}/${endpoint}`, body);
-            
+            if (!res.data || res.data.error || res.data.message === "Invalid credentials") {
+                throw new Error(res.data?.message || "Authentication failed");
+            }
             console.log("Response received:", res.data);
             
             if (isSignin) {
-                if (!res.data.token) {
-                    throw new Error("No token received from server");
-                }
+                // FIX: Check if token exists and is valid
+           
                 
-                localStorage.setItem("token", res.data.token);
-                console.log("Token stored successfully");
-                
+                // FIX: Check if slug exists
                 if (!res.data.slug) {
-                    console.error("No slug received from server. Response:", res.data);
-                    throw new Error("No room slug received. Please try again.");
+                    setError("No room slug received. Please try again.");
+                    setIsLoading(false);
+                    return; // Don't proceed without slug
                 }
                 
-                console.log("Navigating to canvas with slug:", res.data.slug);
                 router.push(`/canvas/${res.data.slug}`);
             } else {
+                // For signup, only redirect on success
                 console.log("Signup successful, redirecting to signin");
                 router.push("/signin");
             }
         } catch (error: any) {
             console.error("Authentication failed:", error);
-            setError(error.response?.data?.message || error.message || "Authentication failed. Please try again.");
+            // FIX: Set error message and stay on page
+            const errorMessage = error.response?.data?.message 
+                || error.message 
+                || "Authentication failed. Please try again.";
+            setError(errorMessage);
             setIsLoading(false);
+            // Don't redirect on error
         }
     }
 
@@ -193,9 +211,6 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                     </div>
                 </div>
             </div>
-
-           
-          
         </div>
     );
 }

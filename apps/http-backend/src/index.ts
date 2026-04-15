@@ -5,10 +5,18 @@ import { middleware } from "./middleware";
 import { CreateUserSchema, CreateRoomSchema, SignInSchema } from "@repo/common/types";
 import { db } from "@repo/db";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 
 const app = express();
+
+// ✅ IMPORTANT FOR COOKIES
+app.use(cors({
+    origin: "http://localhost:3000", // frontend URL
+    credentials: true
+}));
+
 app.use(express.json());
-app.use(cors());
+app.use(cookieParser());
 
 /* =========================
    AUTH ROUTES
@@ -41,7 +49,6 @@ app.post("/signup", async (req, res) => {
     res.status(201).json({ userId: user.id });
 });
 
-// In your Express backend - update the signIn endpoint
 app.post("/signIn", async (req, res) => {
     const parsedData = SignInSchema.safeParse(req.body);
     if (!parsedData.success) {
@@ -52,17 +59,23 @@ app.post("/signIn", async (req, res) => {
         where: { email: parsedData.data.email }
     });
 
-    if (!user) {
-        return res.status(403).json({ message: "Not authorized" });
+    if (!user || user.password !== parsedData.data.password) {
+        return res.status(403).json({ message: "Invalid credentials" });
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-    
-    // ✅ Get or create a default room for the user
+
+    // ✅ SET COOKIE (CORE FIX)
+    res.cookie("token", token, {
+        httpOnly: true,
+        secure: false,        // 👉 true in production (HTTPS)
+        sameSite: "lax",
+    });
+
     let defaultRoom = await db.rooms().findOne({
         where: { slug: `${user.id}-workspace` }
     });
-    
+
     if (!defaultRoom) {
         defaultRoom = db.rooms().create({
             slug: `${user.id}-workspace`,
@@ -71,10 +84,8 @@ app.post("/signIn", async (req, res) => {
         await db.rooms().save(defaultRoom);
     }
 
-    // ✅ Return both token and default room slug
-    res.json({ 
-        token,
-        slug: defaultRoom.slug  // Add this
+    res.json({
+        slug: defaultRoom.slug
     });
 });
 
@@ -108,14 +119,13 @@ app.post("/room", middleware, async (req, res) => {
     res.json({ roomId: room.id });
 });
 
-// ✅ FIXED - Use roomId column directly
 app.get("/chats/:roomId", async (req, res) => {
     try {
         const roomId = Number(req.params.roomId);
 
         const messages = await db.chats().find({
             where: {
-                roomId: roomId // ✅ Use direct column
+                roomId: roomId
             },
             order: { createdAt: "DESC" },
             take: 50
@@ -131,7 +141,6 @@ app.get("/chats/:roomId", async (req, res) => {
    NEW SLUG SYSTEM
 ========================= */
 
-// ✅ get or create room
 app.get("/room/:slug", async (req, res) => {
     try {
         const slug = String(req.params.slug);
@@ -156,7 +165,6 @@ app.get("/room/:slug", async (req, res) => {
     }
 });
 
-// ✅ get chats by slug - FIXED
 app.get("/rooms/:slug/chats", async (req, res) => {
     try {
         const slug = String(req.params.slug);
@@ -171,7 +179,7 @@ app.get("/rooms/:slug/chats", async (req, res) => {
 
         const messages = await db.chats().find({
             where: {
-                roomId: (room.id )// ✅ Use direct column
+                roomId: room.id
             },
             order: { createdAt: "DESC" },
             take: 50
@@ -184,7 +192,6 @@ app.get("/rooms/:slug/chats", async (req, res) => {
     }
 });
 
-// ✅ send chat - FIXED
 app.post("/rooms/:slug/chat", middleware, async (req, res) => {
     try {
         const slug = String(req.params.slug);
@@ -206,7 +213,7 @@ app.post("/rooms/:slug/chat", middleware, async (req, res) => {
         const chat = db.chats().create({
             message,
             userId,
-            roomId: room.id // ✅ Use direct column
+            roomId: room.id
         });
 
         await db.chats().save(chat);
