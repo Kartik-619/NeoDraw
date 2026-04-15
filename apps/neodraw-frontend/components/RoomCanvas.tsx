@@ -15,17 +15,10 @@ export function RoomCanvas({roomId}: {roomId: string}) {
             setConnectionStatus("error");
             return;
         }
-        
         const token = localStorage.getItem("token");
-        if (!token) {
-            console.error("No token found");
-            setConnectionStatus("error");
-            return;
-        }
 
         console.log("Connecting to WebSocket with roomId:", roomId);
-        const ws = new WebSocket(`${WS_URL}?token=${token}`);
-        
+        const ws = new WebSocket(`${WS_URL}?token=${token}`);        
         ws.onopen = () => {
             console.log("WebSocket connected");
             const data = JSON.stringify({

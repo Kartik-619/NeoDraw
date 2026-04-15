@@ -69,8 +69,15 @@ async function getOrCreateRoom(slug: string, userId: string) {
 // ✅ CONNECTION
 wss.on('connection', function connection(ws, request) {
   console.log("New connection");
+  const url = new URL(request.url!, "http://localhost");
+  const queryToken = url.searchParams.get("token");
 
-  const token = getTokenFromCookie(request.headers.cookie);
+  const cookieToken = getTokenFromCookie(request.headers.cookie);
+
+  const token = queryToken || cookieToken;
+
+  console.log("Query token:", queryToken);
+  console.log("Cookie token:", cookieToken);
   const userId = checkUser(token);
 
   if (!userId) {

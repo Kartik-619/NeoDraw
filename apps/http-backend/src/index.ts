@@ -68,8 +68,9 @@ app.post("/signIn", async (req, res) => {
     // ✅ SET COOKIE (CORE FIX)
     res.cookie("token", token, {
         httpOnly: true,
-        secure: false,        // 👉 true in production (HTTPS)
-        sameSite: "lax",
+        secure: false,          // true in production (HTTPS)
+        sameSite: "none",       // 🔥 VERY IMPORTANT
+        path: "/",
     });
 
     let defaultRoom = await db.rooms().findOne({
@@ -85,7 +86,8 @@ app.post("/signIn", async (req, res) => {
     }
 
     res.json({
-        slug: defaultRoom.slug
+        slug: defaultRoom.slug,
+        token 
     });
 });
 
