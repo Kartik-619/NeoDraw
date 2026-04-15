@@ -38,7 +38,9 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
 
         try {
             console.log(`Calling ${endpoint} with:`, body);
-            const res = await axios.post(`${HTTP_BACKEND}/${endpoint}`, body);
+            const res = await axios.post(`${HTTP_BACKEND}/${endpoint}`, body,{
+                withCredentials:true
+            });
             if (!res.data || res.data.error || res.data.message === "Invalid credentials") {
                 throw new Error(res.data?.message || "Authentication failed");
             }
