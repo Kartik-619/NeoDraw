@@ -3,7 +3,7 @@
 import { initDraw } from "@/draw";
 import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./IconButton";
-import { Circle, Pencil, RectangleHorizontalIcon, Diamond, Eraser } from "lucide-react";
+import { Circle, Pencil, RectangleHorizontalIcon, Diamond, Eraser,Share2 } from "lucide-react";
 import { Game } from "@/draw/Game";
 
 export type Tool = "circle" | "rect" | "pencil" | "diamond" | "eraser";
@@ -92,10 +92,22 @@ export function Canvas({
     );
 }
 
-function Topbar({selectedTool, setSelectedTool}: {
+function Topbar({selectedTool, roomId,setSelectedTool}: {
     selectedTool: Tool,
+    roomId?:string,
     setSelectedTool: (s: Tool) => void
 }) {
+    const CopyLink=async()=>{
+        const url=`${window.location.href}/room/${roomId}`;
+        try{
+            await navigator.clipboard.writeText(url);
+            alert("Linked Copied to clipboard 😐");
+        }catch(e){
+            alert("Failed to copy link");
+        }
+    }
+
+
     return (
         <div style={{
             position: "absolute",
@@ -132,6 +144,11 @@ function Topbar({selectedTool, setSelectedTool}: {
                     onClick={() => setSelectedTool("eraser")}
                     activated={selectedTool === "eraser"} 
                     icon={<Eraser size={20} />}
+                />
+                  <IconButton 
+                    onClick={CopyLink}
+                  activated={false}
+                    icon={<Share2 size={20} />}
                 />
             </div>
         </div>

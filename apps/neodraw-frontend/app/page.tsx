@@ -45,6 +45,16 @@ function App() {
                   Sign up
                 </Button>
               </Link>
+
+              <Link href="/joinroom">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-12 px-8 rounded-xl border-black/20 hover:bg-black hover:text-white transition-all"
+                >
+                  Join the Room
+                </Button>
+              </Link>
             </div>
 
           </div>
@@ -141,11 +151,11 @@ function App() {
         <div className="container mx-auto px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-6">
           
           <p className="text-sm text-black/50">
-            © 2024 Excalidraw Clone. All rights reserved.
+            © 2026 NeoDraw. All rights reserved.
           </p>
 
           <div className="flex gap-6">
-            <a className="text-black/50 hover:text-black transition">
+            <a className="text-black/50 hover:text-black transition" href="https://github.com/Kartik-619/NeoDraw.git">
               <Github className="h-5 w-5" />
             </a>
             <a className="text-black/50 hover:text-black transition">
