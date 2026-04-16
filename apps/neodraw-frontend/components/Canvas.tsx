@@ -87,25 +87,30 @@ export function Canvas({
                     cursor: selectedTool === "eraser" ? "cell" : "crosshair"
                 }}
             />
-            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} />
+            <Topbar setSelectedTool={setSelectedTool} selectedTool={selectedTool} roomId={roomId}/>
         </div>
     );
 }
 
 function Topbar({selectedTool, roomId,setSelectedTool}: {
     selectedTool: Tool,
-    roomId?:string,
+    roomId:string,
     setSelectedTool: (s: Tool) => void
 }) {
-    const CopyLink=async()=>{
-        const url=`${window.location.href}/room/${roomId}`;
-        try{
+
+
+    const CopyLink = async () => {
+        if (!roomId) return;
+    
+        const url = `${window.location.origin}/canvas/${roomId}`;
+    
+        try {
             await navigator.clipboard.writeText(url);
-            alert("Linked Copied to clipboard 😐");
-        }catch(e){
+            alert("Link copied ✅");
+        } catch {
             alert("Failed to copy link");
         }
-    }
+    };
 
 
     return (
