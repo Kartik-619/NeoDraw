@@ -28,3 +28,6 @@ export const db = {
 
 
 export { AppDataSource } from "./data-source";
+export { User } from "./entities/User";
+export { Room } from "./entities/Room";
+export { Chat } from "./entities/Chat";

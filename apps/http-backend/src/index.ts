@@ -1,17 +1,19 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
-import { middleware } from "./middleware";
+import { middleware, AuthenticatedRequest } from "./middleware";
 import { CreateUserSchema, CreateRoomSchema, SignInSchema } from "@repo/common/types";
-import { db } from "@repo/db";
+import { container } from "./application/container";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
 const app = express();
 
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
+
 // ✅ IMPORTANT FOR COOKIES
 app.use(cors({
-    origin: "http://localhost:3000", // frontend URL
+    origin: FRONTEND_ORIGIN,
     credentials: true
 }));
 
@@ -28,23 +30,17 @@ app.post("/signup", async (req, res) => {
         return res.status(400).json({ message: "Invalid inputs" });
     }
 
-    const userRepo = db.users();
-
-    const existingUser = await userRepo.findOne({
-        where: { email: data.data.email }
-    });
+    const existingUser = await container.users.findByEmail(data.data.email);
 
     if (existingUser) {
         return res.status(409).json({ message: "User already exists" });
     }
 
-    const user = userRepo.create({
+    const user = await container.users.create({
         email: data.data.email,
         password: data.data.password,
         name: data.data.name
     });
-
-    await userRepo.save(user);
 
     res.status(201).json({ userId: user.id });
 });
@@ -55,9 +51,7 @@ app.post("/signIn", async (req, res) => {
         return res.status(400).json({ message: "Incorrect inputs" });
     }
 
-    const user = await db.users().findOne({
-        where: { email: parsedData.data.email }
-    });
+    const user = await container.users.findByEmail(parsedData.data.email);
 
     if (!user || user.password !== parsedData.data.password) {
         return res.status(403).json({ message: "Invalid credentials" });
@@ -73,16 +67,13 @@ app.post("/signIn", async (req, res) => {
         path: "/",
     });
 
-    let defaultRoom = await db.rooms().findOne({
-        where: { slug: `${user.id}-workspace` }
-    });
+    let defaultRoom = await container.rooms.findBySlug(`${user.id}-workspace`);
 
     if (!defaultRoom) {
-        defaultRoom = db.rooms().create({
+        defaultRoom = await container.rooms.create({
             slug: `${user.id}-workspace`,
             adminId: user.id
         });
-        await db.rooms().save(defaultRoom);
     }
 
     res.json({
@@ -95,28 +86,24 @@ app.post("/signIn", async (req, res) => {
    OLD ROUTES (COMPATIBILITY)
 ========================= */
 
-app.post("/room", middleware, async (req, res) => {
+app.post("/room", middleware, async (req: AuthenticatedRequest, res) => {
     const parsedData = CreateRoomSchema.safeParse(req.body);
     if (!parsedData.success) {
         return res.status(400).json({ message: "Incorrect inputs" });
     }
 
-    const userId = (req as any).userId;
+    const userId = req.userId;
 
-    const existingRoom = await db.rooms().findOne({
-        where: { slug: parsedData.data.name }
-    });
+    const existingRoom = await container.rooms.findBySlug(parsedData.data.name);
 
     if (existingRoom) {
         return res.status(411).json({ message: "Room already exists" });
     }
 
-    const room = db.rooms().create({
+    const room = await container.rooms.create({
         slug: parsedData.data.name,
         adminId: userId
     });
-
-    await db.rooms().save(room);
 
     res.json({ roomId: room.id });
 });
@@ -125,13 +112,7 @@ app.get("/chats/:roomId", async (req, res) => {
     try {
         const roomId = Number(req.params.roomId);
 
-        const messages = await db.chats().find({
-            where: {
-                roomId: roomId
-            },
-            order: { createdAt: "DESC" },
-            take: 50
-        });
+        const messages = await container.chats.findRecentByRoomId(roomId);
 
         res.json({ messages });
     } catch {
@@ -147,17 +128,13 @@ app.get("/room/:slug", async (req, res) => {
     try {
         const slug = String(req.params.slug);
 
-        let room = await db.rooms().findOne({
-            where: { slug }
-        });
+        let room = await container.rooms.findBySlug(slug);
 
         if (!room) {
-            room = db.rooms().create({
+            room = await container.rooms.create({
                 slug,
                 adminId: undefined
             });
-
-            await db.rooms().save(room);
         }
 
         res.json({ room });
@@ -171,21 +148,13 @@ app.get("/rooms/:slug/chats", async (req, res) => {
     try {
         const slug = String(req.params.slug);
 
-        const room = await db.rooms().findOne({
-            where: { slug }
-        });
+        const room = await container.rooms.findBySlug(slug);
 
         if (!room) {
             return res.json({ messages: [] });
         }
 
-        const messages = await db.chats().find({
-            where: {
-                roomId: room.id
-            },
-            order: { createdAt: "DESC" },
-            take: 50
-        });
+        const messages = await container.chats.findRecentByRoomId(room.id);
 
         res.json({ messages });
     } catch (e) {
@@ -194,31 +163,27 @@ app.get("/rooms/:slug/chats", async (req, res) => {
     }
 });
 
-app.post("/rooms/:slug/chat", middleware, async (req, res) => {
+app.post("/rooms/:slug/chat", middleware, async (req: AuthenticatedRequest, res) => {
     try {
         const slug = String(req.params.slug);
         const { message } = req.body;
-        const userId = (req as any).userId;
+        const userId = req.userId;
 
         if (!message) {
             return res.status(400).json({ message: "Message required" });
         }
 
-        const room = await db.rooms().findOne({
-            where: { slug }
-        });
+        const room = await container.rooms.findBySlug(slug);
 
         if (!room) {
             return res.status(404).json({ message: "Room not found" });
         }
 
-        const chat = db.chats().create({
+        const chat = await container.chats.create({
             message,
-            userId,
+            userId: userId!,
             roomId: room.id
         });
-
-        await db.chats().save(chat);
 
         res.json({
             success: true,

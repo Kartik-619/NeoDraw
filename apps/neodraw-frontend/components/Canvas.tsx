@@ -5,8 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { IconButton } from "./IconButton";
 import { Circle, Pencil, RectangleHorizontalIcon, Diamond, Eraser,Share2 } from "lucide-react";
 import { Game } from "@/draw/Game";
-
-export type Tool = "circle" | "rect" | "pencil" | "diamond" | "eraser";
+import { Tool } from "@repo/shared-types";
 
 export function Canvas({
     roomId,

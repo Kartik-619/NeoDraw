@@ -1,36 +1,5 @@
-import { Tool } from "@/components/Canvas";
 import { getExistingShapes } from "./http";
-
-type Shape = {
-    type: "rect";
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-} | {
-    type: "circle";
-    centerX: number;
-    centerY: number;
-    radius: number;
-} | {
-    type: "pencil";
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-} | {
-    type: "diamond";
-    centerX: number;
-    centerY: number;
-    width: number;
-    height: number;
-} | {
-    type: "eraser";
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-}
+import { Shape, Tool } from "@repo/shared-types";
 
 export class Game {
     private canvas: HTMLCanvasElement;

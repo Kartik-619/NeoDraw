@@ -1,24 +1,6 @@
 import { HTTP_BACKEND } from "@/config";
+import { Shape } from "@repo/shared-types";
 import axios from "axios";
-
-type Shape = {
-    type: "rect";
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-} | {
-    type: "circle";
-    centerX: number;
-    centerY: number;
-    radius: number;
-} | {
-    type: "pencil";
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-}
 
 export async function initDraw(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
     const ctx = canvas.getContext("2d");
@@ -56,8 +38,7 @@ export async function initDraw(canvas: HTMLCanvasElement, roomId: string, socket
         const width = e.clientX - startX;
         const height = e.clientY - startY;
 
-        // @ts-ignore
-        const selectedTool = window.selectedTool;
+        const selectedTool = (window as unknown as { selectedTool?: string }).selectedTool;
         let shape: Shape | null = null;
         if (selectedTool === "rect") {
 
@@ -100,8 +81,7 @@ export async function initDraw(canvas: HTMLCanvasElement, roomId: string, socket
             const height = e.clientY - startY;
             clearCanvas(existingShapes, canvas, ctx);
             ctx.strokeStyle = "rgba(255, 255, 255)"
-            // @ts-ignore
-            const selectedTool = window.selectedTool;
+            const selectedTool = (window as unknown as { selectedTool?: string }).selectedTool;
             if (selectedTool === "rect") {
                 ctx.strokeRect(startX, startY, width, height);   
             } else if (selectedTool === "circle") {

@@ -63,11 +63,15 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
                 console.log("Signup successful, redirecting to signin");
                 router.push("/signin");
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Authentication failed:", error);
             // FIX: Set error message and stay on page
-            const errorMessage = error.response?.data?.message 
-                || error.message 
+            const axiosError = error as {
+                response?: { data?: { message?: string } };
+                message?: string;
+            };
+            const errorMessage = axiosError.response?.data?.message
+                || axiosError.message
                 || "Authentication failed. Please try again.";
             setError(errorMessage);
             setIsLoading(false);

@@ -1,7 +1,12 @@
 import { WebSocket, WebSocketServer } from 'ws';
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from '@repo/backend-common/config';
-import { db } from "@repo/db";
+import { container } from './application/container';
+import { Room } from "@repo/db";
+
+interface AuthPayload {
+  userId: string;
+}
 
 const wss = new WebSocketServer({ port: 8080 });
 
@@ -37,7 +42,7 @@ function checkUser(token: string | null): string | null {
   try {
     if (!token) return null;
 
-    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
 
     if (!decoded?.userId) return null;
 
@@ -48,19 +53,14 @@ function checkUser(token: string | null): string | null {
 }
 
 // ✅ ROOM HANDLER (UNCHANGED LOGIC)
-async function getOrCreateRoom(slug: string, userId: string) {
-  const roomRepo = db.rooms();
-
-  let room = await roomRepo.findOne({
-    where: { slug }
-  });
+async function getOrCreateRoom(slug: string, userId: string): Promise<Room> {
+  let room = await container.rooms.findBySlug(slug);
 
   if (!room) {
-    room = roomRepo.create({
+    room = await container.rooms.create({
       slug,
       adminId: userId
     });
-    await roomRepo.save(room);
   }
 
   return room;
@@ -69,7 +69,7 @@ async function getOrCreateRoom(slug: string, userId: string) {
 // ✅ CONNECTION
 wss.on('connection', function connection(ws, request) {
   console.log("New connection");
-  const url = new URL(request.url!, "http://localhost");
+  const url = new URL(request.url || "/", "ws://localhost");
   const queryToken = url.searchParams.get("token");
 
   const cookieToken = getTokenFromCookie(request.headers.cookie);
@@ -140,13 +140,11 @@ wss.on('connection', function connection(ws, request) {
 
       const room = await getOrCreateRoom(roomId, userId);
 
-      const chat = db.chats().create({
+      const chat = await container.chats.create({
         message,
         userId,
         roomId: room.id
       });
-
-      await db.chats().save(chat);
 
       users.forEach(u => {
         if (u.rooms.includes(roomId) && u.ws.readyState === WebSocket.OPEN) {
