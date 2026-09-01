@@ -23,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'  # Not 20 to avoid deprecation
+          node-version: '22.x'  # Not 20 to avoid deprecation
           cache: 'pnpm'
       
       - name: Install pnpm
