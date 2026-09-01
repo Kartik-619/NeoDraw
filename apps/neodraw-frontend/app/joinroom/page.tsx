@@ -20,7 +20,7 @@ export default function JoinRoomPage() {
                 slug = parts[parts.length - 1];
             }
 
-            router.push(`/room/${slug}`);
+            router.push(`/canvas/${slug}`);
         } catch {
             alert("Invalid Room URL or ID");
         }

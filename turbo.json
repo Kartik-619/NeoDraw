@@ -13,6 +13,15 @@
     "check-types": {
       "dependsOn": ["^check-types"]
     },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "test:unit": {
+      "dependsOn": ["^build"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build"]
+    },
     "dev": {
       "dependsOn": ["^build"],
       "cache": false,
