@@ -47,9 +47,11 @@ export function AuthPage({ isSignin }: { isSignin: boolean }) {
             console.log("Response received:", res.data);
             
             if (isSignin) {
-                // FIX: Check if token exists and is valid
-           
-                
+                // FIX: Save the JWT token for WebSocket authentication
+                if (res.data.token) {
+                    localStorage.setItem("token", res.data.token);
+                }
+
                 // FIX: Check if slug exists
                 if (!res.data.slug) {
                     setError("No room slug received. Please try again.");

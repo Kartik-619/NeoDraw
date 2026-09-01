@@ -10,13 +10,6 @@ export function RoomCanvas({roomId}: {roomId: string}) {
     const [connectionStatus, setConnectionStatus] = useState<string>("connecting");
     const wsRef = useRef<WebSocket | null>(null);
     useEffect(() => {
-        
-        if (!roomId || roomId === "undefined") {
-            console.error('Invalid Room ID:', roomId);
-            setConnectionStatus("error");
-            return;
-        }
-
         if (wsRef.current) return;
         const token = localStorage.getItem("token");
 
@@ -78,6 +71,17 @@ export function RoomCanvas({roomId}: {roomId: string}) {
         };
     }, [roomId]);
     
+    if (!roomId || roomId === "undefined") {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                    <div className="text-red-600 text-lg font-semibold mb-2">Connection Error</div>
+                    <p className="text-gray-600">Invalid room ID.</p>
+                </div>
+            </div>
+        );
+    }
+
     if (connectionStatus === "error") {
         return (
             <div className="flex items-center justify-center h-screen">
