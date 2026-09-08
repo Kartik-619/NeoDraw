@@ -1,80 +1,65 @@
 import { describe, it, expect } from "vitest";
-import type { Shape, Tool } from "@repo/shared-types";
+import { isValidShape, PersistedShape } from "@repo/shared-types";
 
-const VALID_TOOLS: Tool[] = ["rect", "circle", "pencil", "diamond", "eraser"];
-
-// Mirrors the shape-extraction logic in apps/neodraw-frontend/draw/http.ts
-function extractShapesFromMessages(messages: { message: string }[]): Shape[] {
-  const shapes: Shape[] = [];
-  for (const x of messages) {
-    try {
-      const messageData = JSON.parse(x.message);
-      if (messageData && messageData.shape && messageData.shape.type) {
-        const t = messageData.shape.type as Tool;
-        if (VALID_TOOLS.includes(t)) {
-          shapes.push(messageData.shape as Shape);
-        }
-      }
-    } catch {
-      // skip non-shape chat messages
-    }
-  }
-  return shapes;
+// Mirrors the shape-filtering logic in apps/neodraw-frontend/draw/http.ts
+// which loads persisted shapes from GET /rooms/:slug/shapes.
+function extractShapes(payload: { shapes: unknown }): PersistedShape[] {
+  const shapes = payload.shapes;
+  if (!Array.isArray(shapes)) return [];
+  return (shapes as PersistedShape[]).filter(
+    (s) => s && typeof s === "object" && typeof (s as { id?: unknown }).id === "string" && isValidShape(s)
+  );
 }
 
-describe("Shape extraction from chat messages", () => {
-  it("returns an empty array for no messages", () => {
-    expect(extractShapesFromMessages([])).toEqual([]);
+describe("Shape extraction from /rooms/:slug/shapes payloads", () => {
+  it("returns an empty array for no shapes", () => {
+    expect(extractShapes({ shapes: [] })).toEqual([]);
   });
 
-  it("extracts a single rectangle shape message", () => {
-    const messages = [
-      { message: JSON.stringify({ shape: { type: "rect", x: 0, y: 0, width: 10, height: 10 } }) }
-    ];
-    expect(extractShapesFromMessages(messages)).toEqual([
-      { type: "rect", x: 0, y: 0, width: 10, height: 10 }
-    ]);
+  it("returns an empty array for a malformed payload", () => {
+    expect(extractShapes({ shapes: "not-an-array" })).toEqual([]);
   });
 
-  it("extracts multiple shapes in order", () => {
-    const messages = [
-      { message: JSON.stringify({ shape: { type: "circle", centerX: 1, centerY: 2, radius: 3 } }) },
-      { message: JSON.stringify({ shape: { type: "pencil", startX: 0, startY: 0, endX: 5, endY: 5 } }) }
-    ];
-    const shapes = extractShapesFromMessages(messages);
+  it("extracts a single persisted rectangle", () => {
+    const shapes = extractShapes({
+      shapes: [{ type: "rect", id: "r1", userId: "u1", x: 0, y: 0, width: 10, height: 10 }]
+    });
+    expect(shapes).toHaveLength(1);
+    expect(shapes[0]!.id).toBe("r1");
+  });
+
+  it("extracts multiple shapes and keeps order", () => {
+    const shapes = extractShapes({
+      shapes: [
+        { type: "circle", id: "c1", userId: "u1", centerX: 1, centerY: 2, radius: 3 },
+        { type: "text", id: "t1", userId: "u2", x: 0, y: 0, text: "hey", fontSize: 16 }
+      ]
+    });
     expect(shapes).toHaveLength(2);
-    expect(shapes[0]?.type).toBe("circle");
-    expect(shapes[1]?.type).toBe("pencil");
+    expect(shapes[0]!.type).toBe("circle");
+    expect(shapes[1]!.type).toBe("text");
   });
 
-  it("ignores chat messages that are not shapes", () => {
-    const messages = [
-      { message: "just a plain chat text" },
-      { message: JSON.stringify({ greeting: "hello" }) },
-      { message: JSON.stringify({ shape: { type: "rect", x: 1, y: 1, width: 5, height: 5 } }) }
-    ];
-    const shapes = extractShapesFromMessages(messages);
-    expect(shapes).toHaveLength(1);
-    expect(shapes[0]?.type).toBe("rect");
-  });
-
-  it("ignores messages containing malformed JSON", () => {
-    const messages = [
-      { message: "{ not valid json" },
-      { message: JSON.stringify({ shape: { type: "diamond", centerX: 0, centerY: 0, width: 4, height: 4 } }) }
-    ];
-    const shapes = extractShapesFromMessages(messages);
-    expect(shapes).toHaveLength(1);
-    expect(shapes[0]?.type).toBe("diamond");
+  it("ignores persisted shapes missing an id", () => {
+    const shapes = extractShapes({
+      shapes: [{ type: "rect", x: 1, y: 1, width: 5, height: 5 }]
+    });
+    expect(shapes).toHaveLength(0);
   });
 
   it("ignores shapes with unknown types", () => {
-    const messages = [
-      { message: JSON.stringify({ shape: { type: "triangle", x: 0, y: 0, width: 1, height: 1 } }) },
-      { message: JSON.stringify({ shape: { type: "circle", centerX: 0, centerY: 0, radius: 1 } }) }
-    ];
-    const shapes = extractShapesFromMessages(messages);
+    const shapes = extractShapes({
+      shapes: [
+        { type: "triangle", id: "bad", x: 0, y: 0 },
+        { type: "circle", id: "c1", userId: "u1", centerX: 0, centerY: 0, radius: 1 }
+      ]
+    });
     expect(shapes).toHaveLength(1);
-    expect(shapes[0]?.type).toBe("circle");
+    expect(shapes[0]!.type).toBe("circle");
+  });
+
+  it("ignores non-object entries", () => {
+    const shapes = extractShapes({ shapes: [null, "junk", 42] });
+    expect(shapes).toEqual([]);
   });
 });

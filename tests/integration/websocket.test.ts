@@ -2,14 +2,17 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { WebSocket, WebSocketServer } from "ws";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "@repo/backend-common/config";
+import { isValidShape } from "@repo/shared-types";
 import {
   InMemoryRoomRepository,
-  InMemoryChatRepository
+  InMemoryChatRepository,
+  InMemoryShapeRepository
 } from "./helpers/memoryRepositories";
 
 interface TestContainer {
   rooms: InMemoryRoomRepository;
   chats: InMemoryChatRepository;
+  shapes: InMemoryShapeRepository;
 }
 
 function authToken(userId: string): string {
@@ -28,6 +31,14 @@ function startWsServer(container: TestContainer) {
   }
 
   const users: ConnectedUser[] = [];
+
+  const broadcastToRoom = (roomSlug: string, payload: unknown, exceptUserId?: string) => {
+    users.forEach((u) => {
+      if (u.userId !== exceptUserId && u.rooms.includes(roomSlug) && u.ws.readyState === WebSocket.OPEN) {
+        u.ws.send(JSON.stringify(payload));
+      }
+    });
+  };
 
   wss.on("connection", (ws, request) => {
     const url = new URL(request.url || "/", "ws://localhost");
@@ -61,12 +72,28 @@ function startWsServer(container: TestContainer) {
         const roomSlug = parsedData.roomId;
         let room = await container.rooms.findBySlug(roomSlug);
         if (!room) room = await container.rooms.create({ slug: roomSlug, adminId: userId! });
+
         if (!user.rooms.includes(roomSlug)) user.rooms.push(roomSlug);
-        ws.send(JSON.stringify({ type: "joined_room", roomId: roomSlug, room }));
+
+        broadcastToRoom(roomSlug, { type: "user_joined", userId: userId!, roomId: roomSlug }, userId!);
+
+        const memberList = users
+          .filter((u) => u.rooms.includes(roomSlug) && u.ws.readyState === WebSocket.OPEN)
+          .map((u) => u.userId);
+
+        const stored = await container.shapes.findByRoomId(room.id);
+        const shapes = stored.map((s) => ({
+          ...(s.data as object),
+          id: s.id,
+          userId: s.userId
+        }));
+
+        ws.send(JSON.stringify({ type: "joined_room", roomId: roomSlug, room, members: memberList, shapes }));
       }
 
       if (parsedData.type === "leave_room") {
         user.rooms = user.rooms.filter((r) => r !== parsedData.roomId);
+        broadcastToRoom(parsedData.roomId, { type: "user_left", userId: userId!, roomId: parsedData.roomId });
       }
 
       if (parsedData.type === "chat") {
@@ -75,15 +102,64 @@ function startWsServer(container: TestContainer) {
         if (!room) room = await container.rooms.create({ slug: roomId, adminId: userId! });
         const chat = await container.chats.create({ message, userId: userId!, roomId: room.id });
 
-        users.forEach((u) => {
-          if (u.rooms.includes(roomId) && u.ws.readyState === WebSocket.OPEN) {
-            u.ws.send(JSON.stringify({ type: "chat", message, roomId, userId, createdAt: chat.createdAt }));
-          }
+        broadcastToRoom(roomId, { type: "chat", message, roomId, userId, createdAt: chat.createdAt });
+      }
+
+      if (parsedData.type === "shape_add") {
+        const roomSlug = parsedData.roomId;
+        if (!user.rooms.includes(roomSlug)) return;
+        if (!isValidShape(parsedData.shape)) return;
+        let room = await container.rooms.findBySlug(roomSlug);
+        if (!room) room = await container.rooms.create({ slug: roomSlug, adminId: userId! });
+
+        const persisted = await container.shapes.create({
+          roomId: room.id,
+          userId: userId!,
+          shape: parsedData.shape,
+          id: typeof parsedData.shape.id === "string" ? parsedData.shape.id : undefined
         });
+
+        broadcastToRoom(roomSlug, { type: "shape_add", roomId: roomSlug, shape: persisted });
+      }
+
+      if (parsedData.type === "shape_update") {
+        const roomSlug = parsedData.roomId;
+        const shapeId = String(parsedData.shapeId);
+        if (!user.rooms.includes(roomSlug)) return;
+        if (!isValidShape(parsedData.shape) || !shapeId) return;
+
+        const updated = await container.shapes.update(shapeId, parsedData.shape);
+        if (!updated) return;
+        broadcastToRoom(roomSlug, { type: "shape_update", roomId: roomSlug, shape: updated });
+      }
+
+      if (parsedData.type === "shape_delete") {
+        const roomSlug = parsedData.roomId;
+        const shapeId = String(parsedData.shapeId);
+        if (!user.rooms.includes(roomSlug)) return;
+        if (!shapeId) return;
+        await container.shapes.remove(shapeId);
+        broadcastToRoom(roomSlug, { type: "shape_delete", roomId: roomSlug, shapeId });
+      }
+
+      if (parsedData.type === "shape_delete_many") {
+        const roomSlug = parsedData.roomId;
+        const shapeIds = Array.isArray(parsedData.shapeIds)
+          ? parsedData.shapeIds.map(String).filter(Boolean)
+          : [];
+        if (!user.rooms.includes(roomSlug)) return;
+        if (shapeIds.length === 0) return;
+        await container.shapes.removeMany(shapeIds);
+        broadcastToRoom(roomSlug, { type: "shape_delete_many", roomId: roomSlug, shapeIds });
       }
     });
 
     ws.on("close", () => {
+      if (userId) {
+        user.rooms.forEach((roomSlug) => {
+          broadcastToRoom(roomSlug, { type: "user_left", userId: userId!, roomId: roomSlug });
+        });
+      }
       const idx = users.findIndex((x) => x.ws === ws);
       if (idx !== -1) users.splice(idx, 1);
     });
@@ -101,16 +177,15 @@ async function createClient(address: string, token: string) {
   const waiters: Waiter[] = [];
 
   const dispatch = () => {
-    while (buffer.length > 0 && waiters.length > 0) {
-      const msg = buffer[0];
+    while (waiters.length > 0) {
       const waiter = waiters[0];
-      if (waiter && waiter.types.includes(msg.type)) {
-        buffer.shift();
-        waiters.shift();
-        waiter.resolve(msg);
-      } else {
-        break;
-      }
+      const idx = buffer.findIndex((msg) => waiter.types.includes(msg.type));
+      if (idx === -1) break;
+      const [msg] = buffer.splice(idx, 1);
+      const finished = waiter;
+      buffer; // keep remaining messages buffered for subsequent waiters
+      waiters.shift();
+      finished.resolve(msg);
     }
   };
 
@@ -165,7 +240,8 @@ describe("WebSocket collaboration integration", () => {
   beforeEach(async () => {
     container = {
       rooms: new InMemoryRoomRepository(),
-      chats: new InMemoryChatRepository()
+      chats: new InMemoryChatRepository(),
+      shapes: new InMemoryShapeRepository()
     };
     wss = startWsServer(container);
     await new Promise<void>((resolve) => wss.on("listening", () => resolve()));
@@ -251,7 +327,6 @@ describe("WebSocket collaboration integration", () => {
 
     wsA.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
     await waitA("joined_room");
-    // wsB joins a different room
 
     wsB.send(JSON.stringify({ type: "join_room", roomId: "room-2" }));
     await waitB("joined_room");
@@ -285,5 +360,283 @@ describe("WebSocket collaboration integration", () => {
     expect(chats[0]!.message).toBe("persisted?");
 
     ws.close();
+  });
+
+  it("includes the current member list in joined_room", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
+    await waitA("joined_room");
+
+    const joinedPromise = waitB("joined_room");
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
+    const joined = await joinedPromise;
+
+    expect(joined.members).toContain("user-a");
+    expect(joined.members).toContain("user-b");
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("broadcasts user_joined to existing members when someone joins", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
+    await waitA("joined_room");
+
+    const joinedPromise = waitA("user_joined");
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
+    const joined = await joinedPromise;
+
+    expect(joined.userId).toBe("user-b");
+    expect(joined.roomId).toBe("room-1");
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("broadcasts user_left to remaining members when someone leaves", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "room-1" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+    // A is notified that B joined; consume it so it doesn't block later waits.
+    await waitA("user_joined");
+
+    const leftPromise = waitA("user_left", 8000);
+    wsB.close();
+    const left = await leftPromise;
+
+    expect(left.userId).toBe("user-b");
+    expect(left.roomId).toBe("room-1");
+
+    wsA.close();
+  });
+
+  // ---------------- Shape CRUD collaboration ----------------
+
+  it("broadcasts shape_add to members of the same room with a persisted id", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+
+    const receivedPromise = waitB("shape_add");
+    const clientShape = { type: "rect", id: "shape-rect-1", x: 0, y: 0, width: 50, height: 40 };
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "draw-1", shape: clientShape }));
+
+    const received = await receivedPromise;
+    expect(received.roomId).toBe("draw-1");
+    expect(received.shape.id).toBe("shape-rect-1");
+    expect(received.shape.type).toBe("rect");
+    expect(received.shape.userId).toBe("user-a");
+
+    const stored = (container.shapes as InMemoryShapeRepository).all();
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.id).toBe("shape-rect-1");
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("rejects invalid shape_add payloads without persisting them", async () => {
+    const { ws, waitFor } = await createClient(address, authToken("user-a"));
+    await waitFor("connection");
+    ws.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    await waitFor("joined_room");
+
+    ws.send(JSON.stringify({ type: "shape_add", roomId: "draw-1", shape: { type: "triangle", x: 0 } }));
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect((container.shapes as InMemoryShapeRepository).all()).toHaveLength(0);
+
+    ws.close();
+  });
+
+  it("ignores shape mutations from a user who has not joined the room", async () => {
+    const { ws, waitFor } = await createClient(address, authToken("user-a"));
+    await waitFor("connection");
+
+    // Never join "locked-room".
+    ws.send(JSON.stringify({ type: "shape_add", roomId: "locked-room", shape: { type: "rect", id: "x1", x: 0, y: 0, width: 5, height: 5 } }));
+    ws.send(JSON.stringify({ type: "shape_delete", roomId: "locked-room", shapeId: "x1" }));
+    ws.send(JSON.stringify({ type: "shape_delete_many", roomId: "locked-room", shapeIds: ["x1"] }));
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect((container.shapes as InMemoryShapeRepository).all()).toHaveLength(0);
+
+    ws.close();
+  });
+
+  it("does NOT broadcast shape_add to a user in a different room (room isolation)", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "draw-a" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "draw-b" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+
+    let leaked = false;
+    wsB.on("message", (event) => {
+      const data = JSON.parse(event.toString());
+      if (data.type === "shape_add" && data.roomId === "draw-a") leaked = true;
+    });
+
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "draw-a", shape: { type: "circle", id: "c1", centerX: 1, centerY: 2, radius: 3 } }));
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(leaked).toBe(false);
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("sends the persisted shape snapshot to a user joining late", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    await waitA("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "snapshot-demo" }));
+    await waitA("joined_room");
+
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "snapshot-demo", shape: { type: "text", id: "txt-1", x: 1, y: 2, text: "hi", fontSize: 20 } }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitB("connection");
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "snapshot-demo" }));
+    const joined = await waitB("joined_room");
+
+    expect(joined.shapes).toBeDefined();
+    expect(joined.shapes).toHaveLength(1);
+    expect(joined.shapes[0]!.id).toBe("txt-1");
+    expect(joined.shapes[0]!.type).toBe("text");
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("broadcasts shape_update and replaces the stored shape data", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "draw-1", shape: { type: "rect", id: "r1", x: 0, y: 0, width: 10, height: 10 } }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const updatePromise = waitB("shape_update");
+    wsA.send(JSON.stringify({
+      type: "shape_update",
+      roomId: "draw-1",
+      shapeId: "r1",
+      shape: { type: "rect", id: "r1", x: 5, y: 5, width: 10, height: 10 }
+    }));
+
+    const received = await updatePromise;
+    expect(received.shape.id).toBe("r1");
+    expect(received.shape.x).toBe(5);
+
+    const stored = (container.shapes as InMemoryShapeRepository).all();
+    expect(stored[0]!.data).toMatchObject({ x: 5, y: 5 });
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("durably deletes a single shape for every member", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "draw-1" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "draw-1", shape: { type: "circle", id: "c1", centerX: 1, centerY: 2, radius: 3 } }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const deletePromise = waitB("shape_delete");
+    wsA.send(JSON.stringify({ type: "shape_delete", roomId: "draw-1", shapeId: "c1" }));
+
+    const received = await deletePromise;
+    expect(received.shapeId).toBe("c1");
+    expect((container.shapes as InMemoryShapeRepository).all()).toHaveLength(0);
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("durably deletes many shapes (eraser) and broadcasts shape_delete_many", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "eraser-demo" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "eraser-demo" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "eraser-demo", shape: { type: "rect", id: "e1", x: 0, y: 0, width: 50, height: 50 } }));
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "eraser-demo", shape: { type: "rect", id: "e2", x: 200, y: 200, width: 10, height: 10 } }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const deletePromise = waitB("shape_delete_many");
+    wsA.send(JSON.stringify({ type: "shape_delete_many", roomId: "eraser-demo", shapeIds: ["e1", "e2"] }));
+
+    const received = await deletePromise;
+    expect(received.shapeIds).toEqual(["e1", "e2"]);
+    expect((container.shapes as InMemoryShapeRepository).all()).toHaveLength(0);
+
+    wsA.close();
+    wsB.close();
+  });
+
+  it("does not leak a deletion to users in another room", async () => {
+    const { ws: wsA, waitFor: waitA } = await createClient(address, authToken("user-a"));
+    const { ws: wsB, waitFor: waitB } = await createClient(address, authToken("user-b"));
+    await waitA("connection");
+    await waitB("connection");
+    wsA.send(JSON.stringify({ type: "join_room", roomId: "room-a" }));
+    wsB.send(JSON.stringify({ type: "join_room", roomId: "room-b" }));
+    await waitA("joined_room");
+    await waitB("joined_room");
+
+    wsA.send(JSON.stringify({ type: "shape_add", roomId: "room-a", shape: { type: "rect", id: "a1", x: 0, y: 0, width: 10, height: 10 } }));
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    let leaked = false;
+    wsB.on("message", (event) => {
+      const data = JSON.parse(event.toString());
+      if (data.type === "shape_delete_many" && data.roomId === "room-a") leaked = true;
+    });
+
+    wsA.send(JSON.stringify({ type: "shape_delete_many", roomId: "room-a", shapeIds: ["a1"] }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(leaked).toBe(false);
+
+    wsA.close();
+    wsB.close();
   });
 });

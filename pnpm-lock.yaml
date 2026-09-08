@@ -39,6 +39,9 @@ importers:
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -125,9 +128,15 @@ importers:
 
   apps/ws-backend:
     dependencies:
+      '@repo/backend-common':
+        specifier: workspace:*
+        version: link:../../packages/backand-common
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@repo/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
@@ -144,9 +153,6 @@ importers:
         specifier: ^8.19.0
         version: 8.19.0
     devDependencies:
-      '@repo/backend-common':
-        specifier: workspace:*
-        version: link:../../packages/backand-common
       '@types/node':
         specifier: ^22.15.3
         version: 22.15.3
@@ -175,6 +181,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@repo/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       dotenv:
         specifier: ^17.3.1
         version: 17.3.1

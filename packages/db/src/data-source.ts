@@ -3,6 +3,7 @@ import { DataSource } from "typeorm";
 import { User } from "./entities/User";
 import { Room } from "./entities/Room";
 import { Chat } from "./entities/Chat";
+import { RoomShape } from "./entities/RoomShape";
 import * as dotenv from "dotenv";
 import * as path from "path";
 
@@ -14,6 +15,6 @@ export const AppDataSource = new DataSource({
   url: process.env.DATABASE_URL,
   synchronize: true, // Auto-creates tables (like Prisma db push)
   logging: false, // See SQL queries in console
-  entities: [User, Room, Chat],
+  entities: [User, Room, Chat, RoomShape],
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });

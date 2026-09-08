@@ -6,6 +6,8 @@ import { CreateUserSchema, CreateRoomSchema, SignInSchema } from "@repo/common/t
 import { container } from "./application/container";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { toPersistedShape } from "@repo/db";
+import { isValidShape, Shape } from "@repo/shared-types";
 
 const app = express();
 
@@ -189,6 +191,127 @@ app.post("/rooms/:slug/chat", middleware, async (req: AuthenticatedRequest, res)
             success: true,
             chat
         });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+/* =========================
+   SHAPE CRUD (first-class)
+========================= */
+
+async function resolveRoomBySlug(slug: string) {
+    let room = await container.rooms.findBySlug(slug);
+
+    if (!room) {
+        room = await container.rooms.create({ slug, adminId: undefined });
+    }
+
+    return room;
+}
+
+app.get("/rooms/:slug/shapes", async (req, res) => {
+    try {
+        const slug = String(req.params.slug);
+        const room = await resolveRoomBySlug(slug);
+
+        const stored = await container.shapes.findByRoomId(room.id);
+
+        res.json({ shapes: stored.map(toPersistedShape) });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.post("/rooms/:slug/shapes", middleware, async (req: AuthenticatedRequest, res) => {
+    try {
+        const slug = String(req.params.slug);
+        const { shape } = req.body;
+        const userId = req.userId;
+
+        if (!isValidShape(shape)) {
+            return res.status(400).json({ message: "Invalid shape" });
+        }
+
+        const room = await resolveRoomBySlug(slug);
+
+        const shapeWithId = shape as Shape & { id?: unknown };
+        const persisted = await container.shapes.create({
+            roomId: room.id,
+            userId: userId!,
+            shape,
+            id: typeof shapeWithId.id === "string" ? shapeWithId.id : undefined
+        });
+
+        res.status(201).json({ shape: persisted });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.patch("/rooms/:slug/shapes/:shapeId", middleware, async (req: AuthenticatedRequest, res) => {
+    try {
+        const slug = String(req.params.slug);
+        const shapeId = String(req.params.shapeId);
+        const { shape } = req.body;
+
+        if (!isValidShape(shape)) {
+            return res.status(400).json({ message: "Invalid shape" });
+        }
+
+        const room = await resolveRoomBySlug(slug);
+        const existing = await container.shapes.findById(shapeId);
+
+        if (!existing || existing.roomId !== room.id) {
+            return res.status(404).json({ message: "Shape not found" });
+        }
+
+        const updated = await container.shapes.update(shapeId, shape);
+
+        res.json({ shape: updated });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.delete("/rooms/:slug/shapes/:shapeId", middleware, async (req: AuthenticatedRequest, res) => {
+    try {
+        const slug = String(req.params.slug);
+        const shapeId = String(req.params.shapeId);
+
+        const room = await resolveRoomBySlug(slug);
+        const existing = await container.shapes.findById(shapeId);
+
+        if (!existing || existing.roomId !== room.id) {
+            return res.status(404).json({ message: "Shape not found" });
+        }
+
+        await container.shapes.remove(shapeId);
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+app.post("/rooms/:slug/shapes/delete-many", middleware, async (req: AuthenticatedRequest, res) => {
+    try {
+        const slug = String(req.params.slug);
+        const { shapeIds } = req.body;
+
+        if (!Array.isArray(shapeIds) || shapeIds.length === 0) {
+            return res.status(400).json({ message: "shapeIds required" });
+        }
+
+        const room = await resolveRoomBySlug(slug);
+        const removed = await container.shapes.removeMany(shapeIds.map(String));
+
+        res.json({ success: true, removed });
     } catch (e) {
         console.error(e);
         res.status(500).json({ message: "Internal server error" });

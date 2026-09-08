@@ -3,6 +3,7 @@ import { AppDataSource } from "./data-source";
 import { User } from "./entities/User";
 import { Room } from "./entities/Room";
 import { Chat } from "./entities/Chat";
+import { RoomShape } from "./entities/RoomShape";
 
 let initialized = false;
 
@@ -24,6 +25,7 @@ export const db = {
   users: () => AppDataSource.getRepository(User),
   rooms: () => AppDataSource.getRepository(Room),
   chats: () => AppDataSource.getRepository(Chat),
+  shapes: () => AppDataSource.getRepository(RoomShape),
 };
 
 
@@ -31,3 +33,5 @@ export { AppDataSource } from "./data-source";
 export { User } from "./entities/User";
 export { Room } from "./entities/Room";
 export { Chat } from "./entities/Chat";
+export { RoomShape } from "./entities/RoomShape";
+export { toPersistedShape } from "./shape-mapper";

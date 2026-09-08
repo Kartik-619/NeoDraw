@@ -1,30 +1,16 @@
 import { HTTP_BACKEND } from "@/config";
-import { Shape, Tool } from "@repo/shared-types";
+import { PersistedShape, isValidShape } from "@repo/shared-types";
 import axios from "axios";
 
-export async function getExistingShapes(roomId: string): Promise<Shape[]> {
-    const res = await axios.get(`${HTTP_BACKEND}/rooms/${roomId}/chats`);
-    const messages = res.data.messages;
+export async function getExistingShapes(roomId: string): Promise<PersistedShape[]> {
+    const res = await axios.get(`${HTTP_BACKEND}/rooms/${roomId}/shapes`);
+    const shapes = res.data.shapes;
 
-    if (!Array.isArray(messages)) {
+    if (!Array.isArray(shapes)) {
         return [];
     }
 
-    const shapes: Shape[] = [];
-
-    for (const x of messages as { message: string }[]) {
-        try {
-            const messageData = JSON.parse(x.message);
-            if (messageData && messageData.shape && messageData.shape.type) {
-                const t = messageData.shape.type as Tool;
-                if (["rect", "circle", "pencil", "diamond", "eraser"].includes(t)) {
-                    shapes.push(messageData.shape as Shape);
-                }
-            }
-        } catch {
-            // Skip non-shape chat messages
-        }
-    }
-
-    return shapes;
+    return (shapes as PersistedShape[]).filter(s =>
+        s && typeof s === "object" && typeof s.id === "string" && isValidShape(s)
+    );
 }

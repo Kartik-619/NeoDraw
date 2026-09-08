@@ -1,6 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from "typeorm";
 import { Room } from "./Room";
 import { Chat } from "./Chat";
+import { RoomShape } from "./RoomShape";
 
 @Entity()
 export class User {
@@ -27,4 +28,7 @@ export class User {
 
   @OneToMany(() => Chat, (chat) => chat.user)
   chats: Chat[];
+
+  @OneToMany(() => RoomShape, (shape) => shape.user)
+  shapes: RoomShape[];
 }

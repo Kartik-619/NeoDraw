@@ -1,5 +1,7 @@
-import { db, Room, Chat } from "@repo/db";
-import { RoomRepository, ChatRepository } from "../../application/repositories";
+import { db, Room, Chat, RoomShape } from "@repo/db";
+import { toPersistedShape } from "@repo/db";
+import { Shape, PersistedShape } from "@repo/shared-types";
+import { RoomRepository, ChatRepository, ShapeRepository } from "../../application/repositories";
 
 export class TypeOrmRoomRepository implements RoomRepository {
   async findBySlug(slug: string): Promise<Room | null> {
@@ -16,5 +18,47 @@ export class TypeOrmChatRepository implements ChatRepository {
   async create(data: { message: string; userId: string; roomId: number }): Promise<Chat> {
     const chat = db.chats().create(data);
     return db.chats().save(chat);
+  }
+}
+
+export class TypeOrmShapeRepository implements ShapeRepository {
+  async findByRoomId(roomId: number): Promise<RoomShape[]> {
+    return db.shapes().find({
+      where: { roomId },
+      order: { createdAt: "ASC" }
+    });
+  }
+
+  async findById(id: string): Promise<RoomShape | null> {
+    return db.shapes().findOne({ where: { id } });
+  }
+
+  async create(data: { roomId: number; userId: string; shape: Shape; id?: string }): Promise<PersistedShape> {
+    const entity = db.shapes().create({
+      id: data.id ?? undefined,
+      roomId: data.roomId,
+      userId: data.userId,
+      data: data.shape as unknown as object
+    });
+    const saved = await db.shapes().save(entity);
+    return toPersistedShape(saved);
+  }
+
+  async update(id: string, shape: Shape): Promise<PersistedShape | null> {
+    const existing = await db.shapes().findOne({ where: { id } });
+    if (!existing) return null;
+    existing.data = shape as unknown as object;
+    const saved = await db.shapes().save(existing);
+    return toPersistedShape(saved);
+  }
+
+  async remove(id: string): Promise<void> {
+    await db.shapes().delete({ id });
+  }
+
+  async removeMany(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    const result = await db.shapes().delete(ids);
+    return result.affected ?? 0;
   }
 }
