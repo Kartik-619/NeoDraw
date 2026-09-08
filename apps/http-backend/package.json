@@ -1,33 +1,36 @@
 {
-  "name": "http-backend",
-  "version": "1.0.0",
-  "description": "",
-  "license": "ISC",
-  "author": "",
-  "type": "commonjs",
-  "main": "index.js",
+  "name": "@repo/http-backend",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc -b",
-    "start": "tsc -b && node ./dist/index.js",
-    "dev": "tsc  && node dist/index.js"
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit --project tsconfig.json"
   },
   "dependencies": {
-    "@repo/backend-common": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/shared-types": "workspace:*",
-    "@repo/typescript-config": "workspace:*",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
+    "@repo/common": "workspace:*",
+    "@repo/backend-common": "workspace:*",
+    "typeorm": "^0.3.21",
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
     "cookie-parser": "^1.4.7",
-    "cors": "^2.8.6",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3"
+    "jsonwebtoken": "^9.0.2",
+    "bcrypt": "^5.1.1"
   },
   "devDependencies": {
-    "@repo/backend-common": "workspace:*",
-    "@repo/common": "workspace:*",
-    "@repo/db": "workspace:*",
-    "@types/cookie-parser": "^1.4.10"
+    "typescript": "^5.7.3",
+    "@repo/typescript-config": "workspace:*",
+    "@repo/eslint-config": "workspace:*",
+    "eslint": "^9.18.0",
+    "@types/express": "^5.0.1",
+    "@types/cors": "^2.8.17",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/jsonwebtoken": "^9.0.9",
+    "@types/bcrypt": "^5.0.2",
+    "tsx": "^4.19.2"
   }
 }

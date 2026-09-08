@@ -1,31 +1,33 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, OneToMany, CreateDateColumn, UpdateDateColumn } from "typeorm";
-import { User } from "./User";
-import { Chat } from "./Chat";
-import { RoomShape } from "./RoomShape";
+import "reflect-metadata";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
+import type { EditPermission, RoomInfo } from "@repo/shared-types";
 
 @Entity()
 export class Room {
   @PrimaryGeneratedColumn()
-  id: number;
+  id!: number;
 
   @Column({ unique: true })
-  slug: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
+  slug!: string;
 
   @Column({ nullable: true })
-  adminId: string;
-  
-  @ManyToOne(() => User, (user) => user.rooms, { nullable: true })
-  admin: User;
+  adminId!: string;
 
-  @OneToMany(() => Chat, (chat) => chat.room)
-  chats: Chat[];
+  @Column({ type: "varchar", default: "anyone" })
+  editPermission: EditPermission = "anyone";
 
-  @OneToMany(() => RoomShape, (shape) => shape.room)
-  shapes: RoomShape[];
+  @CreateDateColumn()
+  createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
+}
+
+export function toRoomInfo(room: Room): RoomInfo {
+  return {
+    id: room.id,
+    slug: room.slug,
+    adminId: room.adminId,
+    editPermission: room.editPermission,
+  };
 }

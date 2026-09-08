@@ -1,324 +1,282 @@
-import express from "express";
-import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "@repo/backend-common/config";
-import { middleware, AuthenticatedRequest } from "./middleware";
-import { CreateUserSchema, CreateRoomSchema, SignInSchema } from "@repo/common/types";
-import { container } from "./application/container";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { toPersistedShape } from "@repo/db";
-import { isValidShape, Shape } from "@repo/shared-types";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcrypt";
+import { CreateUserSchema, SignInSchema, CreateRoomSchema } from "@repo/common";
+import { JWT_SECRET } from "@repo/backend-common";
+import { isValidShape, isValidPersistedShape, newId, canEditRoom, type EditPermission } from "@repo/shared-types";
+import { getContainer } from "./application/container";
+import type { RoomRecord } from "./application/repositories";
+import { authMiddleware, type AuthRequest } from "./middleware";
 
-const app = express();
+async function main() {
+  const container = await getContainer();
+  const app = express();
 
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
+  function getParam(value: string | string[] | undefined): string | null {
+    return typeof value === "string" ? value : null;
+  }
 
-// ✅ IMPORTANT FOR COOKIES
-app.use(cors({
-    origin: FRONTEND_ORIGIN,
-    credentials: true
-}));
+  app.use(cors({
+    origin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
+    credentials: true,
+  }));
+  app.use(express.json());
+  app.use(cookieParser());
 
-app.use(express.json());
-app.use(cookieParser());
+  // --- Auth ---
 
-/* =========================
-   AUTH ROUTES
-========================= */
+  app.post("/signup", async (req: Request, res: Response) => {
+    const parsed = CreateUserSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten().fieldErrors });
+      return;
+    }
+    const { email, password, name } = parsed.data;
+    const existing = await container.users.findByEmail(email);
+    if (existing) {
+      res.status(409).json({ message: "Email already in use" });
+      return;
+    }
+    const hashed = await bcrypt.hash(password, 10);
+    const { id } = await container.users.create({ email, password: hashed, name });
+    res.status(201).json({ userId: id });
+  });
 
-app.post("/signup", async (req, res) => {
-    const data = CreateUserSchema.safeParse(req.body);
-    if (!data.success) {
-        return res.status(400).json({ message: "Invalid inputs" });
+  app.post("/signIn", async (req: Request, res: Response) => {
+    const parsed = SignInSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input" });
+      return;
+    }
+    const { email, password } = parsed.data;
+    const user = await container.users.findByEmail(email);
+    if (!user) {
+      res.status(401).json({ message: "Invalid credentials" });
+      return;
+    }
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      res.status(401).json({ message: "Invalid credentials" });
+      return;
+    }
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+    res.cookie("token", token, { httpOnly: true, sameSite: "lax" });
+
+    // Ensure default workspace room exists
+    const slug = `${user.id}-workspace`;
+    const existing = await container.rooms.findBySlug(slug);
+    if (!existing) {
+      await container.rooms.create({ slug, adminId: user.id });
     }
 
-    const existingUser = await container.users.findByEmail(data.data.email);
+    res.json({ slug, token });
+  });
 
-    if (existingUser) {
-        return res.status(409).json({ message: "User already exists" });
+  // --- Room ---
+
+  app.post("/room", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const parsed = CreateRoomSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid input" });
+      return;
     }
+    const slug = `room-${newId().slice(0, 8)}`;
+    const room = await container.rooms.create({ slug, adminId: req.userId });
+    res.status(201).json({ roomId: room.id, slug: room.slug });
+  });
 
-    const user = await container.users.create({
-        email: data.data.email,
-        password: data.data.password,
-        name: data.data.name
-    });
+  // Resolve room by slug (creates if missing)
+  async function resolveRoomBySlug(slug: string): Promise<RoomRecord> {
+    const existing = await container.rooms.findBySlug(slug);
+    if (existing) return existing;
+    return await container.rooms.create({ slug });
+  }
 
-    res.status(201).json({ userId: user.id });
-});
-
-app.post("/signIn", async (req, res) => {
-    const parsedData = SignInSchema.safeParse(req.body);
-    if (!parsedData.success) {
-        return res.status(400).json({ message: "Incorrect inputs" });
-    }
-
-    const user = await container.users.findByEmail(parsedData.data.email);
-
-    if (!user || user.password !== parsedData.data.password) {
-        return res.status(403).json({ message: "Invalid credentials" });
-    }
-
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-
-    // ✅ SET COOKIE (CORE FIX)
-    res.cookie("token", token, {
-        httpOnly: true,
-        secure: false,          // true in production (HTTPS)
-        sameSite: "none",       // 🔥 VERY IMPORTANT
-        path: "/",
-    });
-
-    let defaultRoom = await container.rooms.findBySlug(`${user.id}-workspace`);
-
-    if (!defaultRoom) {
-        defaultRoom = await container.rooms.create({
-            slug: `${user.id}-workspace`,
-            adminId: user.id
-        });
-    }
-
-    res.json({
-        slug: defaultRoom.slug,
-        token 
-    });
-});
-
-/* =========================
-   OLD ROUTES (COMPATIBILITY)
-========================= */
-
-app.post("/room", middleware, async (req: AuthenticatedRequest, res) => {
-    const parsedData = CreateRoomSchema.safeParse(req.body);
-    if (!parsedData.success) {
-        return res.status(400).json({ message: "Incorrect inputs" });
-    }
-
-    const userId = req.userId;
-
-    const existingRoom = await container.rooms.findBySlug(parsedData.data.name);
-
-    if (existingRoom) {
-        return res.status(411).json({ message: "Room already exists" });
-    }
-
-    const room = await container.rooms.create({
-        slug: parsedData.data.name,
-        adminId: userId
-    });
-
-    res.json({ roomId: room.id });
-});
-
-app.get("/chats/:roomId", async (req, res) => {
-    try {
-        const roomId = Number(req.params.roomId);
-
-        const messages = await container.chats.findRecentByRoomId(roomId);
-
-        res.json({ messages });
-    } catch {
-        res.json({ messages: [] });
-    }
-});
-
-/* =========================
-   NEW SLUG SYSTEM
-========================= */
-
-app.get("/room/:slug", async (req, res) => {
-    try {
-        const slug = String(req.params.slug);
-
-        let room = await container.rooms.findBySlug(slug);
-
-        if (!room) {
-            room = await container.rooms.create({
-                slug,
-                adminId: undefined
-            });
-        }
-
-        res.json({ room });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
-    }
-});
-
-app.get("/rooms/:slug/chats", async (req, res) => {
-    try {
-        const slug = String(req.params.slug);
-
-        const room = await container.rooms.findBySlug(slug);
-
-        if (!room) {
-            return res.json({ messages: [] });
-        }
-
-        const messages = await container.chats.findRecentByRoomId(room.id);
-
-        res.json({ messages });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
-    }
-});
-
-app.post("/rooms/:slug/chat", middleware, async (req: AuthenticatedRequest, res) => {
-    try {
-        const slug = String(req.params.slug);
-        const { message } = req.body;
-        const userId = req.userId;
-
-        if (!message) {
-            return res.status(400).json({ message: "Message required" });
-        }
-
-        const room = await container.rooms.findBySlug(slug);
-
-        if (!room) {
-            return res.status(404).json({ message: "Room not found" });
-        }
-
-        const chat = await container.chats.create({
-            message,
-            userId: userId!,
-            roomId: room.id
-        });
-
-        res.json({
-            success: true,
-            chat
-        });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
-    }
-});
-
-/* =========================
-   SHAPE CRUD (first-class)
-========================= */
-
-async function resolveRoomBySlug(slug: string) {
-    let room = await container.rooms.findBySlug(slug);
-
-    if (!room) {
-        room = await container.rooms.create({ slug, adminId: undefined });
-    }
-
-    return room;
+function canEdit(room: RoomRecord, userId: string): boolean {
+  return canEditRoom(room.editPermission, room.adminId ?? null, userId);
 }
 
-app.get("/rooms/:slug/shapes", async (req, res) => {
-    try {
-        const slug = String(req.params.slug);
-        const room = await resolveRoomBySlug(slug);
-
-        const stored = await container.shapes.findByRoomId(room.id);
-
-        res.json({ shapes: stored.map(toPersistedShape) });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
+  app.get("/room/:slug", async (req: Request, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
     }
-});
+    const room = await resolveRoomBySlug(slug);
+    res.json({ roomId: room.id, slug: room.slug, adminId: room.adminId, editPermission: room.editPermission });
+  });
 
-app.post("/rooms/:slug/shapes", middleware, async (req: AuthenticatedRequest, res) => {
-    try {
-        const slug = String(req.params.slug);
-        const { shape } = req.body;
-        const userId = req.userId;
-
-        if (!isValidShape(shape)) {
-            return res.status(400).json({ message: "Invalid shape" });
-        }
-
-        const room = await resolveRoomBySlug(slug);
-
-        const shapeWithId = shape as Shape & { id?: unknown };
-        const persisted = await container.shapes.create({
-            roomId: room.id,
-            userId: userId!,
-            shape,
-            id: typeof shapeWithId.id === "string" ? shapeWithId.id : undefined
-        });
-
-        res.status(201).json({ shape: persisted });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
+  // Update room sharing permission (admin only)
+  app.patch("/rooms/:slug/permissions", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
     }
-});
-
-app.patch("/rooms/:slug/shapes/:shapeId", middleware, async (req: AuthenticatedRequest, res) => {
-    try {
-        const slug = String(req.params.slug);
-        const shapeId = String(req.params.shapeId);
-        const { shape } = req.body;
-
-        if (!isValidShape(shape)) {
-            return res.status(400).json({ message: "Invalid shape" });
-        }
-
-        const room = await resolveRoomBySlug(slug);
-        const existing = await container.shapes.findById(shapeId);
-
-        if (!existing || existing.roomId !== room.id) {
-            return res.status(404).json({ message: "Shape not found" });
-        }
-
-        const updated = await container.shapes.update(shapeId, shape);
-
-        res.json({ shape: updated });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
+    const room = await resolveRoomBySlug(slug);
+    if (room.adminId !== req.userId) {
+      res.status(403).json({ message: "Only the room owner can change sharing permissions" });
+      return;
     }
-});
-
-app.delete("/rooms/:slug/shapes/:shapeId", middleware, async (req: AuthenticatedRequest, res) => {
-    try {
-        const slug = String(req.params.slug);
-        const shapeId = String(req.params.shapeId);
-
-        const room = await resolveRoomBySlug(slug);
-        const existing = await container.shapes.findById(shapeId);
-
-        if (!existing || existing.roomId !== room.id) {
-            return res.status(404).json({ message: "Shape not found" });
-        }
-
-        await container.shapes.remove(shapeId);
-
-        res.json({ success: true });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
+    const { editPermission } = req.body as { editPermission?: unknown };
+    if (editPermission !== "anyone" && editPermission !== "admin") {
+      res.status(400).json({ message: "editPermission must be 'anyone' or 'admin'" });
+      return;
     }
-});
+    const updated = await container.rooms.updateEditPermission(slug, editPermission as EditPermission);
+    res.json({ slug, editPermission: updated?.editPermission ?? (editPermission as EditPermission) });
+  });
 
-app.post("/rooms/:slug/shapes/delete-many", middleware, async (req: AuthenticatedRequest, res) => {
-    try {
-        const slug = String(req.params.slug);
-        const { shapeIds } = req.body;
+  // --- Shape CRUD ---
 
-        if (!Array.isArray(shapeIds) || shapeIds.length === 0) {
-            return res.status(400).json({ message: "shapeIds required" });
-        }
-
-        const room = await resolveRoomBySlug(slug);
-        const removed = await container.shapes.removeMany(shapeIds.map(String));
-
-        res.json({ success: true, removed });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: "Internal server error" });
+  app.get("/rooms/:slug/shapes", async (req: Request, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
     }
-});
+    const room = await resolveRoomBySlug(slug);
+    const shapes = await container.shapes.findByRoomId(room.id);
+    res.json({ shapes });
+  });
 
-const PORT = 3008;
-app.listen(PORT, () => {
-    console.log(`✅ HTTP Backend running on port ${PORT}`);
-});
+  app.post("/rooms/:slug/shapes", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
+    }
+    const room = await resolveRoomBySlug(slug);
+    if (!canEdit(room, req.userId!)) {
+      res.status(403).json({ message: "This room is view-only" });
+      return;
+    }
+    const { shape } = req.body;
+    if (!isValidPersistedShape(shape)) {
+      res.status(400).json({ message: "Invalid shape" });
+      return;
+    }
+    const persisted = await container.shapes.create({ roomId: room.id, userId: req.userId!, shape });
+    res.status(201).json({ shape: persisted });
+  });
+
+  app.patch("/rooms/:slug/shapes/:shapeId", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    const shapeId = getParam(req.params.shapeId);
+    if (!slug || !shapeId) {
+      res.status(400).json({ message: "Invalid slug or shapeId" });
+      return;
+    }
+    const room = await resolveRoomBySlug(slug);
+    if (!canEdit(room, req.userId!)) {
+      res.status(403).json({ message: "This room is view-only" });
+      return;
+    }
+    const existing = await container.shapes.findShapeInRoom(room.id, shapeId);
+    if (!existing) {
+      res.status(404).json({ message: "Shape not found in this room" });
+      return;
+    }
+    const { shape } = req.body;
+    if (!isValidShape(shape)) {
+      res.status(400).json({ message: "Invalid shape data" });
+      return;
+    }
+    const updated = await container.shapes.update(room.id, shapeId, shape);
+    res.json({ shape: updated });
+  });
+
+  app.delete("/rooms/:slug/shapes/:shapeId", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    const shapeId = getParam(req.params.shapeId);
+    if (!slug || !shapeId) {
+      res.status(400).json({ message: "Invalid slug or shapeId" });
+      return;
+    }
+    const room = await resolveRoomBySlug(slug);
+    if (!canEdit(room, req.userId!)) {
+      res.status(403).json({ message: "This room is view-only" });
+      return;
+    }
+    const existing = await container.shapes.findShapeInRoom(room.id, shapeId);
+    if (!existing) {
+      res.status(404).json({ message: "Shape not found in this room" });
+      return;
+    }
+    await container.shapes.delete(room.id, shapeId);
+    res.json({ success: true });
+  });
+
+  app.post("/rooms/:slug/shapes/delete-many", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
+    }
+    const room = await resolveRoomBySlug(slug);
+    if (!canEdit(room, req.userId!)) {
+      res.status(403).json({ message: "This room is view-only" });
+      return;
+    }
+    const { shapeIds } = req.body as { shapeIds: string[] };
+    if (!Array.isArray(shapeIds)) {
+      res.status(400).json({ message: "shapeIds must be an array" });
+      return;
+    }
+    const removed = await container.shapes.deleteMany(room.id, shapeIds);
+    res.json({ success: true, removed });
+  });
+
+  // --- Chat ---
+
+  app.get("/rooms/:slug/chats", async (req: Request, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
+    }
+    const room = await resolveRoomBySlug(slug);
+    const chats = await container.chats.findByRoomId(room.id);
+    res.json({ chats });
+  });
+
+  app.get("/chats/:roomId", async (req: Request, res: Response) => {
+    const roomIdRaw = getParam(req.params.roomId);
+    if (!roomIdRaw) {
+      res.status(400).json({ message: "Invalid room ID" });
+      return;
+    }
+    const roomId = parseInt(roomIdRaw);
+    if (isNaN(roomId)) {
+      res.status(400).json({ message: "Invalid room ID" });
+      return;
+    }
+    const chats = await container.chats.findByRoomId(roomId);
+    res.json({ chats });
+  });
+
+  app.post("/rooms/:slug/chat", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
+    }
+    const room = await resolveRoomBySlug(slug);
+    const { message } = req.body as { message: string };
+    if (!message || typeof message !== "string") {
+      res.status(400).json({ message: "Message is required" });
+      return;
+    }
+    await container.chats.create({ message, userId: req.userId!, roomId: room.id });
+    res.status(201).json({ success: true });
+  });
+
+  const PORT = process.env.HTTP_PORT || 3008;
+  app.listen(PORT, () => {
+    console.log(`HTTP backend running on port ${PORT}`);
+  });
+}
+
+main().catch(console.error);

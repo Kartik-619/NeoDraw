@@ -1,25 +1,25 @@
-import { UserRepository, RoomRepository, ChatRepository, ShapeRepository } from "./repositories";
-import {
-  TypeOrmUserRepository,
-  TypeOrmRoomRepository,
-  TypeOrmChatRepository,
-  TypeOrmShapeRepository
-} from "../infrastructure/repositories";
+import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository } from "./repositories";
 
 export interface Container {
   users: UserRepository;
   rooms: RoomRepository;
-  chats: ChatRepository;
   shapes: ShapeRepository;
+  chats: ChatRepository;
 }
 
-function createContainer(): Container {
-  return {
-    users: new TypeOrmUserRepository(),
-    rooms: new TypeOrmRoomRepository(),
-    chats: new TypeOrmChatRepository(),
-    shapes: new TypeOrmShapeRepository()
-  };
+let container: Container | null = null;
+
+export function setContainer(c: Container): void {
+  container = c;
 }
 
-export const container: Container = createContainer();
+export function getContainer(): Promise<Container> {
+  if (container) return Promise.resolve(container);
+
+  // Lazy-load the TypeORM adapter only when the app actually boots.
+  // Tests inject a memory container via setContainer and never trigger this.
+  return import("../infrastructure/repositories/index").then((m) => {
+    if (container) return container;
+    return m.buildTypeOrmContainer();
+  });
+}

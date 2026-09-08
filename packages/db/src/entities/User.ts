@@ -1,34 +1,23 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from "typeorm";
-import { Room } from "./Room";
-import { Chat } from "./Chat";
-import { RoomShape } from "./RoomShape";
+import "reflect-metadata";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from "typeorm";
 
 @Entity()
 export class User {
   @PrimaryGeneratedColumn("uuid")
-  id: string;
+  id!: string;
 
   @Column({ unique: true })
-  email: string;
+  email!: string;
 
   @Column()
-  password: string;
+  password!: string;
 
   @Column()
-  name: string;
+  name!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
-
-  @OneToMany(() => Room, (room) => room.admin)
-  rooms: Room[];
-
-  @OneToMany(() => Chat, (chat) => chat.user)
-  chats: Chat[];
-
-  @OneToMany(() => RoomShape, (shape) => shape.user)
-  shapes: RoomShape[];
+  updatedAt!: Date;
 }

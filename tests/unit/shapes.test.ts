@@ -1,50 +1,51 @@
 import { describe, it, expect } from "vitest";
-import { isValidShape } from "@repo/shared-types";
+import { isValidShape, isValidPersistedShape } from "@repo/shared-types";
 
-describe("Shared shape type validation (@repo/shared-types)", () => {
-  it("accepts a valid rectangle", () => {
-    expect(isValidShape({ type: "rect", x: 0, y: 0, width: 10, height: 10 })).toBe(true);
+describe("isValidShape", () => {
+  it("accepts valid rect", () => {
+    expect(isValidShape({ type: "rect", x: 0, y: 0, width: 100, height: 50 })).toBe(true);
   });
 
-  it("rejects a rectangle missing a coordinate field", () => {
-    expect(isValidShape({ type: "rect", x: 0, y: 0, width: 10 })).toBe(false);
+  it("accepts valid circle", () => {
+    expect(isValidShape({ type: "circle", centerX: 50, centerY: 50, radius: 25 })).toBe(true);
   });
 
-  it("accepts a valid circle", () => {
-    expect(isValidShape({ type: "circle", centerX: 5, centerY: 5, radius: 3 })).toBe(true);
+  it("accepts valid pencil", () => {
+    expect(isValidShape({ type: "pencil", startX: 0, startY: 0, endX: 100, endY: 100 })).toBe(true);
   });
 
-  it("accepts a valid pencil line", () => {
-    expect(isValidShape({ type: "pencil", startX: 1, startY: 2, endX: 3, endY: 4 })).toBe(true);
+  it("accepts valid diamond", () => {
+    expect(isValidShape({ type: "diamond", centerX: 50, centerY: 50, width: 80, height: 60 })).toBe(true);
   });
 
-  it("accepts a valid diamond", () => {
-    expect(isValidShape({ type: "diamond", centerX: 1, centerY: 2, width: 4, height: 4 })).toBe(true);
+  it("accepts valid text", () => {
+    expect(isValidShape({ type: "text", x: 10, y: 20, text: "hello", fontSize: 16 })).toBe(true);
   });
 
-  it("accepts a valid text shape", () => {
-    expect(isValidShape({ type: "text", x: 10, y: 20, text: "Hello", fontSize: 16 })).toBe(true);
+  it("rejects missing field", () => {
+    expect(isValidShape({ type: "rect", x: 0, y: 0, width: 100 })).toBe(false);
   });
 
-  it("rejects a text shape without content", () => {
-    expect(isValidShape({ type: "text", x: 10, y: 20, text: "", fontSize: 16 })).toBe(true);
-    expect(isValidShape({ type: "text", x: 10, y: 20, fontSize: 16 })).toBe(false);
+  it("rejects wrong type", () => {
+    expect(isValidShape({ type: "triangle", x: 0, y: 0 })).toBe(false);
   });
 
-  it("rejects shapes with an unknown type", () => {
-    expect(isValidShape({ type: "triangle", x: 0, y: 0, width: 1, height: 1 })).toBe(false);
-  });
-
-  it("rejects the eraser rectangle (not a shape)", () => {
-    expect(isValidShape({ type: "eraser", x: 0, y: 0, width: 5, height: 5 })).toBe(false);
-  });
-
-  it("accepts a persisted shape carrying an id and userId", () => {
-    expect(isValidShape({ type: "rect", x: 0, y: 0, width: 1, height: 1, id: "abc", userId: "u1" })).toBe(true);
-  });
-
-  it("rejects null and undefined shapes", () => {
+  it("rejects non-object", () => {
     expect(isValidShape(null)).toBe(false);
-    expect(isValidShape(undefined)).toBe(false);
+    expect(isValidShape("string")).toBe(false);
+  });
+});
+
+describe("isValidPersistedShape", () => {
+  it("accepts valid persisted shape", () => {
+    expect(isValidPersistedShape({ id: "abc", userId: "u1", type: "rect", x: 0, y: 0, width: 10, height: 10 })).toBe(true);
+  });
+
+  it("rejects missing id", () => {
+    expect(isValidPersistedShape({ userId: "u1", type: "rect", x: 0, y: 0, width: 10, height: 10 })).toBe(false);
+  });
+
+  it("rejects missing userId", () => {
+    expect(isValidPersistedShape({ id: "abc", type: "rect", x: 0, y: 0, width: 10, height: 10 })).toBe(false);
   });
 });

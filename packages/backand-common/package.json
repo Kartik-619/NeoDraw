@@ -1,16 +1,22 @@
 {
   "name": "@repo/backend-common",
-  "version": "1.0.0",
-  "main": "index.js",
-  "exports":{
-    "./config":"./src/index.ts"
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
- "devDependencies": {
-  "@repo/typescript-config": "workspace:*"
-},
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "description": ""
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "check-types": "tsc --noEmit --project tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.10.0"
+  }
 }

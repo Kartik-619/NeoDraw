@@ -1,286 +1,235 @@
-import { WebSocket, WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from "ws";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET } from '@repo/backend-common/config';
-import { container } from './application/container';
-import { Room } from "@repo/db";
-import { toPersistedShape } from "@repo/db";
-import { isValidShape, PersistedShape, Shape } from "@repo/shared-types";
+import { parse } from "cookie";
+import { In } from "typeorm";
+import { JWT_SECRET } from "@repo/backend-common";
+import { initializeDatabase, db, toPersistedShape, toRoomInfo, type Room } from "@repo/db";
+import { isValidPersistedShape, canEditRoom, type ClientMessage, type ServerShapeMessage } from "@repo/shared-types";
+import type { IncomingMessage } from "http";
+import { createServer, type Server } from "http";
 
-interface AuthPayload {
+interface ConnectedUser {
   userId: string;
+  rooms: string[];
+  ws: WebSocket;
 }
 
-const wss = new WebSocketServer({ port: 8080 });
+const users: Map<WebSocket, ConnectedUser> = new Map();
 
-wss.on('error', (error) => {
-    console.error('WebSocket server error:', error);
-});
-
-wss.on('listening', () => {
-    console.log(`✅ WebSocket server running on port 8080`);
-});
-
-interface User {
-  ws: WebSocket,
-  rooms: string[],
-  userId: string
-}
-
-const users: User[] = [];
-
-// ✅ COOKIE PARSER
-function getTokenFromCookie(cookieHeader?: string): string | null {
-  if (!cookieHeader) return null;
-
-  const cookies = Object.fromEntries(
-    cookieHeader.split("; ").map(c => c.split("="))
-  );
-
-  return cookies.token || null;
-}
-
-// ✅ AUTH CHECK
-function checkUser(token: string | null): string | null {
-  try {
-    if (!token) return null;
-
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
-
-    if (!decoded?.userId) return null;
-
-    return decoded.userId;
-  } catch {
-    return null;
+function send(ws: WebSocket, msg: ServerShapeMessage): void {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
   }
 }
 
-// ✅ ROOM HANDLER
-async function getOrCreateRoom(slug: string, userId: string): Promise<Room> {
-  let room = await container.rooms.findBySlug(slug);
+function broadcastToRoom(roomSlug: string, msg: ServerShapeMessage, exceptUserId?: string): void {
+  for (const [, user] of users) {
+    if (user.rooms.includes(roomSlug) && user.ws.readyState === WebSocket.OPEN && user.userId !== exceptUserId) {
+      send(user.ws, msg);
+    }
+  }
+}
 
+function getRoomMembers(roomSlug: string): string[] {
+  const memberSet = new Set<string>();
+  for (const [, user] of users) {
+    if (user.rooms.includes(roomSlug)) {
+      memberSet.add(user.userId);
+    }
+  }
+  return Array.from(memberSet);
+}
+
+async function resolveRoomBySlug(slug: string) {
+  let room = await db.rooms().findOne({ where: { slug } });
   if (!room) {
-    room = await container.rooms.create({
-      slug,
-      adminId: userId
-    });
+    room = await db.rooms().create({ slug });
+    room = await db.rooms().save(room);
   }
-
   return room;
 }
 
-// ✅ BROADCAST HELPER
-function broadcastToRoom(roomSlug: string, payload: unknown, exceptUserId?: string) {
-  users.forEach(u => {
-    if (u.userId !== exceptUserId && u.rooms.includes(roomSlug) && u.ws.readyState === WebSocket.OPEN) {
-      u.ws.send(JSON.stringify(payload));
-    }
-  });
+function canEdit(room: Room, userId: string): boolean {
+  return canEditRoom(room.editPermission, room.adminId ?? null, userId);
 }
 
-// ✅ CONNECTION
-wss.on('connection', function connection(ws, request) {
-  console.log("New connection");
-  const url = new URL(request.url || "/", "ws://localhost");
-  const queryToken = url.searchParams.get("token");
-
-  const cookieToken = getTokenFromCookie(request.headers.cookie);
-
-  const token = queryToken || cookieToken;
-
-  const userId = checkUser(token);
-
-  if (!userId) {
-    console.log("Auth failed");
-    ws.close();
+async function handleMessage(ws: WebSocket, user: ConnectedUser, raw: string): Promise<void> {
+  let msg: ClientMessage;
+  try {
+    msg = JSON.parse(raw) as ClientMessage;
+  } catch {
     return;
   }
 
-  const user: User = {
-    userId,
-    rooms: [],
-    ws
-  };
+  switch (msg.type) {
+    case "join_room": {
+      const { roomId } = msg;
+      const room = await resolveRoomBySlug(roomId);
 
-  users.push(user);
-
-  console.log(`User ${userId} connected`);
-
-  ws.send(JSON.stringify({
-    type: "connection",
-    message: "Connected",
-    userId
-  }));
-
-  ws.on('message', async (data) => {
-    let parsedData: Record<string, unknown>;
-
-    try {
-      parsedData = JSON.parse(data.toString());
-    } catch {
-      return;
-    }
-
-    // ✅ JOIN ROOM
-    if (parsedData.type === "join_room") {
-      const roomSlug = String(parsedData.roomId);
-
-      const room = await getOrCreateRoom(roomSlug, userId);
-
-      if (!user.rooms.includes(roomSlug)) {
-        user.rooms.push(roomSlug);
+      if (!user.rooms.includes(roomId)) {
+        user.rooms.push(roomId);
       }
 
-      // Notify existing members that a new user has joined
-      broadcastToRoom(roomSlug, {
-        type: "user_joined",
-        userId,
-        roomId: roomSlug
-      }, userId);
+      // Notify others
+      broadcastToRoom(roomId, { type: "user_joined", userId: user.userId, roomId }, user.userId);
 
-      // Send the current member list + full shape snapshot to the joining user
-      const memberList = users.filter(u => u.rooms.includes(roomSlug) && u.ws.readyState === WebSocket.OPEN).map(u => u.userId);
+      // Send full snapshot to joiner
+      const shapes = await db.shapes().find({ where: { roomId: room.id }, order: { createdAt: "ASC" } });
+      const persistedShapes = shapes.map(toPersistedShape);
+      const members = getRoomMembers(roomId);
 
-      let shapes: PersistedShape[] = [];
-      try {
-        const stored = await container.shapes.findByRoomId(room.id);
-        shapes = stored.map(toPersistedShape);
-      } catch (error) {
-        console.error("Failed to load shapes for room:", error);
-      }
-
-      ws.send(JSON.stringify({
+      send(ws, {
         type: "joined_room",
-        roomId: roomSlug,
-        room,
-        members: memberList,
-        shapes
-      }));
-    }
-
-    // ✅ LEAVE ROOM
-    if (parsedData.type === "leave_room") {
-      const roomSlug = String(parsedData.roomId);
-      user.rooms = user.rooms.filter(r => r !== roomSlug);
-
-      broadcastToRoom(roomSlug, {
-        type: "user_left",
-        userId,
-        roomId: roomSlug
+        roomId,
+        room: toRoomInfo(room),
+        members,
+        shapes: persistedShapes,
       });
+      break;
     }
+    case "leave_room": {
+      const { roomId } = msg;
+      user.rooms = user.rooms.filter(r => r !== roomId);
+      broadcastToRoom(roomId, { type: "user_left", userId: user.userId, roomId });
+      break;
+    }
+    case "chat": {
+      const { roomId, message } = msg;
+      if (!user.rooms.includes(roomId)) return;
 
-    // ✅ CHAT
-    if (parsedData.type === "chat") {
-      const { roomId, message } = parsedData;
+      const room = await db.rooms().findOne({ where: { slug: roomId } });
+      if (!room) return;
 
-      const room = await getOrCreateRoom(String(roomId), userId);
+      const chat = db.chats().create({ message, userId: user.userId, roomId: room.id });
+      await db.chats().save(chat);
 
-      const chat = await container.chats.create({
-        message: String(message),
-        userId,
-        roomId: room.id
-      });
-
-      broadcastToRoom(String(roomId), {
+      broadcastToRoom(roomId, {
         type: "chat",
         message,
         roomId,
-        userId,
-        createdAt: chat.createdAt
+        userId: user.userId,
+        createdAt: new Date().toISOString(),
       });
+      break;
+    }
+    case "shape_add": {
+      const { roomId, shape } = msg;
+      if (!user.rooms.includes(roomId)) return;
+      if (!isValidPersistedShape(shape)) return;
+
+      const room = await db.rooms().findOne({ where: { slug: roomId } });
+      if (!room || !canEdit(room, user.userId)) return;
+
+      const { id, userId, ...rest } = shape;
+      const entity = db.shapes().create({ id, roomId: room.id, userId, data: rest as Record<string, unknown> });
+      await db.shapes().save(entity);
+
+      broadcastToRoom(roomId, { type: "shape_add", roomId, shape });
+      break;
+    }
+    case "shape_update": {
+      const { roomId, shapeId, shape } = msg;
+      if (!user.rooms.includes(roomId)) return;
+
+      const room = await db.rooms().findOne({ where: { slug: roomId } });
+      if (!room || !canEdit(room, user.userId)) return;
+
+      const existing = await db.shapes().findOne({ where: { id: shapeId, roomId: room.id } });
+      if (!existing) return;
+
+      existing.data = { ...existing.data, ...shape } as Record<string, unknown>;
+      await db.shapes().save(existing);
+
+      const updated = toPersistedShape(existing);
+      broadcastToRoom(roomId, { type: "shape_update", roomId, shape: updated });
+      break;
+    }
+    case "shape_delete": {
+      const { roomId, shapeId } = msg;
+      if (!user.rooms.includes(roomId)) return;
+
+      const room = await db.rooms().findOne({ where: { slug: roomId } });
+      if (!room || !canEdit(room, user.userId)) return;
+
+      await db.shapes().delete({ id: shapeId, roomId: room.id });
+      broadcastToRoom(roomId, { type: "shape_delete", roomId, shapeId });
+      break;
+    }
+    case "shape_delete_many": {
+      const { roomId, shapeIds } = msg;
+      if (!user.rooms.includes(roomId)) return;
+
+      const room = await db.rooms().findOne({ where: { slug: roomId } });
+      if (!room || !canEdit(room, user.userId)) return;
+
+      await db.shapes().delete({ id: In(shapeIds), roomId: room.id });
+      broadcastToRoom(roomId, { type: "shape_delete_many", roomId, shapeIds });
+      break;
+    }
+  }
+}
+
+function authenticateToken(req: IncomingMessage): string | null {
+  // Try cookie first
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    const cookies = parse(cookieHeader);
+    if (cookies.token) {
+      try {
+        const payload = jwt.verify(cookies.token, JWT_SECRET) as { userId: string };
+        return payload.userId;
+      } catch { /* continue */ }
+    }
+  }
+
+  // Try query string
+  const url = new URL(req.url || "/", `http://${req.headers.host}`);
+  const token = url.searchParams.get("token");
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+      return payload.userId;
+    } catch { /* invalid */ }
+  }
+
+  return null;
+}
+
+async function main(): Promise<void> {
+  await initializeDatabase();
+
+  const server: Server = createServer();
+  const wss = new WebSocketServer({ server });
+
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+    const userId = authenticateToken(req);
+    if (!userId) {
+      ws.close(1008, "Unauthorized");
+      return;
     }
 
-    // ✅ SHAPE ADD
-    if (parsedData.type === "shape_add") {
-      const roomSlug = String(parsedData.roomId);
-      if (!user.rooms.includes(roomSlug)) return;
-      if (!isValidShape(parsedData.shape)) return;
+    const user: ConnectedUser = { userId, rooms: [], ws };
+    users.set(ws, user);
 
-      const room = await getOrCreateRoom(roomSlug, userId);
-      const clientShape = parsedData.shape as Shape & { id?: unknown };
-      const persisted = await container.shapes.create({
-        roomId: room.id,
-        userId,
-        shape: clientShape,
-        id: typeof clientShape.id === "string" ? clientShape.id : undefined
-      });
+    send(ws, { type: "connection", userId });
 
-      broadcastToRoom(roomSlug, {
-        type: "shape_add",
-        roomId: roomSlug,
-        shape: persisted
-      });
-    }
-
-    // ✅ SHAPE UPDATE
-    if (parsedData.type === "shape_update") {
-      const roomSlug = String(parsedData.roomId);
-      const shapeId = String(parsedData.shapeId);
-      if (!user.rooms.includes(roomSlug)) return;
-      if (!isValidShape(parsedData.shape) || !shapeId) return;
-
-      const updated = await container.shapes.update(shapeId, parsedData.shape);
-      if (!updated) return;
-
-      broadcastToRoom(roomSlug, {
-        type: "shape_update",
-        roomId: roomSlug,
-        shape: updated
-      });
-    }
-
-    // ✅ SHAPE DELETE (single)
-    if (parsedData.type === "shape_delete") {
-      const roomSlug = String(parsedData.roomId);
-      const shapeId = String(parsedData.shapeId);
-      if (!user.rooms.includes(roomSlug)) return;
-      if (!shapeId) return;
-
-      await container.shapes.remove(shapeId);
-
-      broadcastToRoom(roomSlug, {
-        type: "shape_delete",
-        roomId: roomSlug,
-        shapeId
-      });
-    }
-
-    // ✅ SHAPE DELETE MANY (eraser)
-    if (parsedData.type === "shape_delete_many") {
-      const roomSlug = String(parsedData.roomId);
-      const shapeIds = Array.isArray(parsedData.shapeIds)
-        ? parsedData.shapeIds.map(String).filter(Boolean)
-        : [];
-      if (!user.rooms.includes(roomSlug)) return;
-      if (shapeIds.length === 0) return;
-
-      await container.shapes.removeMany(shapeIds);
-
-      broadcastToRoom(roomSlug, {
-        type: "shape_delete_many",
-        roomId: roomSlug,
-        shapeIds
-      });
-    }
-  });
-
-  ws.on("close", () => {
-    // Notify remaining members before removing this user from the room(s)
-    user.rooms.forEach(roomSlug => {
-      broadcastToRoom(roomSlug, {
-        type: "user_left",
-        userId,
-        roomId: roomSlug
-      });
+    ws.on("message", (data) => {
+      handleMessage(ws, user, data.toString()).catch(console.error);
     });
 
-    const index = users.findIndex(x => x.ws === ws);
-    if (index !== -1) users.splice(index, 1);
-
-    console.log(`User ${userId} disconnected`);
+    ws.on("close", () => {
+      // Broadcast user_left for all rooms
+      for (const roomId of user.rooms) {
+        broadcastToRoom(roomId, { type: "user_left", userId: user.userId, roomId });
+      }
+      users.delete(ws);
+    });
   });
 
-  ws.on("error", (err) => {
-    console.error("WS error:", err);
+  const PORT = process.env.WS_PORT || 8080;
+  server.listen(PORT, () => {
+    console.log(`WebSocket backend running on port ${PORT}`);
   });
-});
+}
+
+main().catch(console.error);

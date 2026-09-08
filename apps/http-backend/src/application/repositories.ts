@@ -1,26 +1,35 @@
-import { User, Room, Chat, RoomShape } from "@repo/db";
-import { PersistedShape, Shape } from "@repo/shared-types";
+import type { PersistedShape, Shape, EditPermission } from "@repo/shared-types";
 
 export interface UserRepository {
-  findByEmail(email: string): Promise<User | null>;
-  create(data: { email: string; password: string; name: string }): Promise<User>;
+  findById(id: string): Promise<{ id: string; email: string; name: string; password: string } | null>;
+  findByEmail(email: string): Promise<{ id: string; email: string; name: string; password: string } | null>;
+  create(data: { email: string; password: string; name: string }): Promise<{ id: string }>;
+}
+
+export interface RoomRecord {
+  id: number;
+  slug: string;
+  adminId: string | null;
+  editPermission: EditPermission;
 }
 
 export interface RoomRepository {
-  findBySlug(slug: string): Promise<Room | null>;
-  create(data: { slug: string; adminId?: string }): Promise<Room>;
-}
-
-export interface ChatRepository {
-  findRecentByRoomId(roomId: number, take?: number): Promise<Chat[]>;
-  create(data: { message: string; userId: string; roomId: number }): Promise<Chat>;
+  findById(id: number): Promise<RoomRecord | null>;
+  findBySlug(slug: string): Promise<RoomRecord | null>;
+  create(data: { slug: string; adminId?: string }): Promise<RoomRecord>;
+  updateEditPermission(slug: string, editPermission: EditPermission): Promise<RoomRecord | null>;
 }
 
 export interface ShapeRepository {
-  findByRoomId(roomId: number): Promise<RoomShape[]>;
-  findById(id: string): Promise<RoomShape | null>;
-  create(data: { roomId: number; userId: string; shape: Shape; id?: string }): Promise<PersistedShape>;
-  update(id: string, shape: Shape): Promise<PersistedShape | null>;
-  remove(id: string): Promise<void>;
-  removeMany(ids: string[]): Promise<number>;
+  findByRoomId(roomId: number): Promise<PersistedShape[]>;
+  findShapeInRoom(roomId: number, shapeId: string): Promise<PersistedShape | null>;
+  create(data: { roomId: number; userId: string; shape: PersistedShape }): Promise<PersistedShape>;
+  update(roomId: number, shapeId: string, shape: Partial<Shape>): Promise<PersistedShape | null>;
+  delete(roomId: number, shapeId: string): Promise<boolean>;
+  deleteMany(roomId: number, shapeIds: string[]): Promise<string[]>;
+}
+
+export interface ChatRepository {
+  findByRoomId(roomId: number): Promise<{ id: string; message: string; userId: string; roomId: number; createdAt: Date }[]>;
+  create(data: { message: string; userId: string; roomId: number }): Promise<void>;
 }

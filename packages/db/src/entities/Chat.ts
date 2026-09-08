@@ -1,28 +1,20 @@
-// In packages/db/src/entities/Chat.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn } from "typeorm";
-import { Room } from "./Room";
-import { User } from "./User";
+import "reflect-metadata";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from "typeorm";
 
 @Entity()
 export class Chat {
   @PrimaryGeneratedColumn("uuid")
-  id: string;
+  id!: string;
 
   @Column()
-  message: string;
+  message!: string;
 
   @Column()
-  userId: string;
+  userId!: string;
 
-  @Column() // Add this column
-  roomId: number;
+  @Column()
+  roomId!: number;
 
   @CreateDateColumn()
-  createdAt: Date;
-
-  @ManyToOne(() => Room, (room) => room.chats)
-  room: Room;
-
-  @ManyToOne(() => User, (user) => user.chats)
-  user: User;
+  createdAt!: Date;
 }

@@ -1,11 +1,6 @@
-import { PersistedShape, Shape } from "@repo/shared-types";
-import { RoomShape } from "./entities/RoomShape";
+import type { PersistedShape } from "@repo/shared-types";
+import type { RoomShape } from "./entities/RoomShape";
 
 export function toPersistedShape(shape: RoomShape): PersistedShape {
-  const data = (shape.data ?? {}) as Shape;
-  return {
-    ...data,
-    id: shape.id,
-    userId: shape.userId,
-  };
+  return { ...(shape.data as Record<string, unknown>), id: shape.id, userId: shape.userId } as PersistedShape;
 }

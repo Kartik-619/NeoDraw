@@ -1,29 +1,25 @@
 {
-  "name": "y",
+  "name": "neodraw",
   "private": true,
   "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
+    "dev": "turbo dev",
+    "dev:http": "turbo dev --filter=@repo/http-backend",
+    "dev:ws": "turbo dev --filter=@repo/ws-backend",
+    "dev:frontend": "turbo dev --filter=@repo/neodraw-frontend",
+    "build": "turbo build",
+    "build:http": "turbo build --filter=@repo/http-backend",
+    "build:ws": "turbo build --filter=@repo/ws-backend",
+    "build:frontend": "turbo build --filter=@repo/neodraw-frontend",
+    "test": "turbo test",
+    "test:unit": "pnpm --filter ny-tests test:unit",
+    "test:integration": "pnpm --filter ny-tests test:integration",
+    "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types",
-    "test": "turbo run test",
-    "test:unit": "turbo run test:unit",
-    "test:integration": "turbo run test:integration"
+    "check-types": "turbo check-types"
   },
   "devDependencies": {
-    "dotenv": "^17.3.1",
-    "dotenv-cli": "^11.0.0",
-    "prettier": "^3.7.4",
-    "tsx": "^4.21.0",
-    "turbo": "^2.8.13",
-    "typescript": "5.9.2"
+    "turbo": "^2.4.4",
+    "prettier": "^3.4.2"
   },
-  "packageManager": "pnpm@9.0.0",
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "axios": "^1.13.6"
-  }
+  "packageManager": "pnpm@9.15.0"
 }

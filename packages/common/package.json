@@ -1,19 +1,24 @@
 {
   "name": "@repo/common",
-  "version": "1.0.0",
-  "exports":{
-    "./types":"./src/types.ts"
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "main": "index.js",
-  "devDependencies": {
-    "@repo/typescript-config": "workspace:*"
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "check-types": "tsc --noEmit --project tsconfig.json"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "description": "",
   "dependencies": {
-    "zod": "^4.3.6"
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@repo/typescript-config": "workspace:*"
   }
 }

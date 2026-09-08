@@ -1,83 +1,99 @@
-import { db, User, Room, Chat, RoomShape } from "@repo/db";
-import { toPersistedShape } from "@repo/db";
-import { Shape, PersistedShape } from "@repo/shared-types";
-import { UserRepository, RoomRepository, ChatRepository, ShapeRepository } from "../../application/repositories";
+import { In } from "typeorm";
+import { initializeDatabase, db, toPersistedShape } from "@repo/db";
+import type { PersistedShape, Shape, EditPermission } from "@repo/shared-types";
+import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository, RoomRecord } from "../../application/repositories";
+import type { Container } from "../../application/container";
 
-export class TypeOrmUserRepository implements UserRepository {
-  async findByEmail(email: string): Promise<User | null> {
-    return db.users().findOne({ where: { email } });
+class TypeOrmUserRepository implements UserRepository {
+  async findById(id: string) {
+    return await db.users().findOne({ where: { id } });
   }
-
-  async create(data: { email: string; password: string; name: string }): Promise<User> {
+  async findByEmail(email: string) {
+    return await db.users().findOne({ where: { email } });
+  }
+  async create(data: { email: string; password: string; name: string }) {
     const user = db.users().create(data);
-    return db.users().save(user);
+    const saved = await db.users().save(user);
+    return { id: saved.id };
   }
 }
 
-export class TypeOrmRoomRepository implements RoomRepository {
-  async findBySlug(slug: string): Promise<Room | null> {
-    return db.rooms().findOne({ where: { slug } });
+class TypeOrmRoomRepository implements RoomRepository {
+  async findById(id: number) {
+    const room = await db.rooms().findOne({ where: { id } });
+    return room ? this.toRecord(room) : null;
   }
-
-  async create(data: { slug: string; adminId?: string }): Promise<Room> {
-    const room = db.rooms().create(data);
-    return db.rooms().save(room);
+  async findBySlug(slug: string) {
+    const room = await db.rooms().findOne({ where: { slug } });
+    return room ? this.toRecord(room) : null;
+  }
+  async create(data: { slug: string; adminId?: string }) {
+    const room = db.rooms().create({ slug: data.slug, adminId: data.adminId, editPermission: "anyone" });
+    const saved = await db.rooms().save(room);
+    return this.toRecord(saved);
+  }
+  async updateEditPermission(slug: string, editPermission: EditPermission): Promise<RoomRecord | null> {
+    const room = await db.rooms().findOne({ where: { slug } });
+    if (!room) return null;
+    room.editPermission = editPermission;
+    const saved = await db.rooms().save(room);
+    return this.toRecord(saved);
+  }
+  private toRecord(room: { id: number; slug: string; adminId: string | null; editPermission: EditPermission }): RoomRecord {
+    return { id: room.id, slug: room.slug, adminId: room.adminId, editPermission: room.editPermission };
   }
 }
 
-export class TypeOrmChatRepository implements ChatRepository {
-  async findRecentByRoomId(roomId: number, take = 50): Promise<Chat[]> {
-    return db.chats().find({
-      where: { roomId },
-      order: { createdAt: "DESC" },
-      take
-    });
+class TypeOrmShapeRepository implements ShapeRepository {
+  async findByRoomId(roomId: number): Promise<PersistedShape[]> {
+    const shapes = await db.shapes().find({ where: { roomId }, order: { createdAt: "ASC" } });
+    return shapes.map(toPersistedShape);
   }
-
-  async create(data: { message: string; userId: string; roomId: number }): Promise<Chat> {
-    const chat = db.chats().create(data);
-    return db.chats().save(chat);
+  async findShapeInRoom(roomId: number, shapeId: string): Promise<PersistedShape | null> {
+    const shape = await db.shapes().findOne({ where: { id: shapeId, roomId } });
+    if (!shape) return null;
+    return toPersistedShape(shape);
   }
-}
-
-export class TypeOrmShapeRepository implements ShapeRepository {
-  async findByRoomId(roomId: number): Promise<RoomShape[]> {
-    return db.shapes().find({
-      where: { roomId },
-      order: { createdAt: "ASC" }
-    });
-  }
-
-  async findById(id: string): Promise<RoomShape | null> {
-    return db.shapes().findOne({ where: { id } });
-  }
-
-  async create(data: { roomId: number; userId: string; shape: Shape; id?: string }): Promise<PersistedShape> {
-    const entity = db.shapes().create({
-      id: data.id ?? undefined,
-      roomId: data.roomId,
-      userId: data.userId,
-      data: data.shape as unknown as object
-    });
+  async create(data: { roomId: number; userId: string; shape: PersistedShape }): Promise<PersistedShape> {
+    const { id, ...rest } = data.shape;
+    const entity = db.shapes().create({ id, roomId: data.roomId, userId: data.userId, data: rest as Record<string, unknown> });
     const saved = await db.shapes().save(entity);
     return toPersistedShape(saved);
   }
-
-  async update(id: string, shape: Shape): Promise<PersistedShape | null> {
-    const existing = await db.shapes().findOne({ where: { id } });
+  async update(roomId: number, shapeId: string, shape: Partial<Shape>): Promise<PersistedShape | null> {
+    const existing = await db.shapes().findOne({ where: { id: shapeId, roomId } });
     if (!existing) return null;
-    existing.data = shape as unknown as object;
+    existing.data = { ...existing.data, ...shape } as Record<string, unknown>;
     const saved = await db.shapes().save(existing);
     return toPersistedShape(saved);
   }
-
-  async remove(id: string): Promise<void> {
-    await db.shapes().delete({ id });
+  async delete(roomId: number, shapeId: string): Promise<boolean> {
+    const result = await db.shapes().delete({ id: shapeId, roomId });
+    return (result.affected ?? 0) > 0;
   }
-
-  async removeMany(ids: string[]): Promise<number> {
-    if (ids.length === 0) return 0;
-    const result = await db.shapes().delete(ids);
-    return result.affected ?? 0;
+  async deleteMany(roomId: number, shapeIds: string[]): Promise<string[]> {
+    if (shapeIds.length === 0) return [];
+    await db.shapes().delete({ id: In(shapeIds), roomId });
+    return shapeIds;
   }
+}
+
+class TypeOrmChatRepository implements ChatRepository {
+  async findByRoomId(roomId: number) {
+    return await db.chats().find({ where: { roomId }, order: { createdAt: "ASC" } });
+  }
+  async create(data: { message: string; userId: string; roomId: number }) {
+    const chat = db.chats().create(data);
+    await db.chats().save(chat);
+  }
+}
+
+export async function buildTypeOrmContainer(): Promise<Container> {
+  await initializeDatabase();
+  return {
+    users: new TypeOrmUserRepository(),
+    rooms: new TypeOrmRoomRepository(),
+    shapes: new TypeOrmShapeRepository(),
+    chats: new TypeOrmChatRepository(),
+  };
 }

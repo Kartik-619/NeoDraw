@@ -26,7 +26,8 @@ and can select/move/erase any shape. All shapes are saved to PostgreSQL.
 
 Prerequisites: Node >= 18, pnpm 9, a running PostgreSQL.
 
-1. **Create a `.env` at the repo root** (there is no committed `.env`):
+1. **Create a `.env` at the repo root** (use `.env.example` as a template and fill in
+   real values — there is no committed `.env`):
    ```
    DATABASE_URL=postgres://user:password@localhost:5432/neodraw
    JWT_SECRET=some-long-random-string

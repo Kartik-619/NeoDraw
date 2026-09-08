@@ -1,11 +1,10 @@
 {
-  "extends": "../packages/typescript-config/base.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "types": ["vitest/globals", "node"],
-    "skipLibCheck": true
+    "outDir": "./dist",
+    "rootDir": ".",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true
   },
-  "include": ["./**/*.ts"]
+  "include": ["unit/**/*", "integration/**/*", "helpers/**/*"]
 }

@@ -1,32 +1,22 @@
-import { NextFunction, Request, Response } from "express";
-import { JWT_SECRET } from "@repo/backend-common/config";
+import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "@repo/backend-common";
 
-interface AuthPayload {
-    userId: string;
+export interface AuthRequest extends Request {
+  userId?: string;
 }
 
-export interface AuthenticatedRequest extends Request {
-    userId?: string;
-}
-
-export function middleware(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-    const token = req.cookies?.token;
-
-    if (!token) {
-        return res.status(403).json({ message: "Unauthorized: No token" });
-    }
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
-
-        if (!decoded?.userId) {
-            return res.status(403).json({ message: "Invalid token" });
-        }
-
-        req.userId = decoded.userId;
-        next();
-    } catch {
-        res.status(403).json({ message: "Unauthorized" });
-    }
+export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
+  const token = req.cookies?.token;
+  if (!token) {
+    res.status(403).json({ message: "Not authenticated" });
+    return;
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
+    req.userId = payload.userId;
+    next();
+  } catch {
+    res.status(403).json({ message: "Invalid token" });
+  }
 }

@@ -1,34 +1,27 @@
 {
   "name": "@repo/db",
-  "version": "1.0.0",
+  "version": "0.0.0",
+  "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.js"
+      "types": "./dist/index.d.ts"
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc ",
-    "clean": "rm -rf dist",
-    "typeorm": "typeorm-ts-node-commonjs",
-    "migration:generate": "typeorm migration:generate -d src/data-source.ts",
-    "migration:run": "typeorm migration:run -d dist/data-source.js",
-    "migration:revert": "typeorm migration:revert -d dist/data-source.js"
-  },
-  "devDependencies": {
-    "@repo/typescript-config": "workspace:*",
-    "@types/node": "^25.5.0",
-    "typescript": "^5.0.0"
+    "build": "tsc --project tsconfig.json",
+    "check-types": "tsc --noEmit --project tsconfig.json"
   },
   "dependencies": {
     "@repo/shared-types": "workspace:*",
-    "dotenv": "^17.3.1",
-    "pg": "^8.20.0",
-    "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.20"
-  }
-}
+    "typeorm": "^0.3.21",
+    "pg": "^8.13.1",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.10.0"
+  }}
