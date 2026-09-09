@@ -16,6 +16,7 @@ export interface RoomRecord {
 export interface RoomRepository {
   findById(id: number): Promise<RoomRecord | null>;
   findBySlug(slug: string): Promise<RoomRecord | null>;
+  findByAdminId(adminId: string): Promise<RoomRecord[]>;
   create(data: { slug: string; adminId?: string }): Promise<RoomRecord>;
   updateEditPermission(slug: string, editPermission: EditPermission): Promise<RoomRecord | null>;
 }

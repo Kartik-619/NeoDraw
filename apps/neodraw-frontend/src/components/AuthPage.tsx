@@ -1,33 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import type { FormEvent, CSSProperties } from "react";
-import Link from "next/link";
+import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { HTTP_BACKEND } from "@/lib/config";
 import { Spinner } from "./Skeleton";
 
+type AuthMode = "signin" | "signup";
+
 interface AuthPageProps {
-  isSignin?: boolean;
+  initialMode?: AuthMode;
 }
 
-const inputStyle: CSSProperties = {
-  padding: "0.75rem 1rem",
-  borderRadius: "0.75rem",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "#0E0E0E",
-  color: "white",
-  fontSize: "0.95rem",
-  outline: "none",
-};
-
-export function AuthPage({ isSignin = false }: AuthPageProps) {
+export function AuthPage({ initialMode = "signin" }: AuthPageProps) {
   const router = useRouter();
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [errorKey, setErrorKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+
+  const isSignin = mode === "signin";
+
+  function switchMode(next: AuthMode): void {
+    if (next === mode) return;
+    setMode(next);
+    setShowPassword(false);
+    setError("");
+    setErrorKey((k) => k + 1);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -48,111 +52,145 @@ export function AuthPage({ isSignin = false }: AuthPageProps) {
 
       if (!res.ok) {
         setError(data["message"] || "Something went wrong");
+        setErrorKey((k) => k + 1);
         return;
       }
 
       if (isSignin) {
         const token = data["token"];
-        const slug = data["slug"];
-        if (!token || !slug) {
+        if (!token) {
           setError("Missing sign-in data");
+          setErrorKey((k) => k + 1);
           return;
         }
         localStorage.setItem("token", token);
-        router.push(`/canvas/${slug}`);
+        router.push("/dashboard");
       } else {
-        router.push("/signin");
+        setPassword("");
+        switchMode("signin");
       }
     } catch {
       setError("Network error");
+      setErrorKey((k) => k + 1);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 pt-16">
-      {/* ambient glow */}
-      <div className="pointer-events-none fixed left-1/2 top-[-10rem] h-96 w-96 -translate-x-1/2 rounded-full bg-brand/20 blur-[120px]" />
+    <div className="auth-page flex min-h-screen items-center justify-center px-6 pt-16">
+      <form onSubmit={handleSubmit} className="auth-card">
+        <div className="auth-mark">N</div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="relative flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-white/10 bg-surface/70 p-8 backdrop-blur"
-      >
-        <div className="mb-2 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-2xl font-extrabold text-black">
-            N
-          </div>
-          <h2 className="text-2xl font-extrabold text-white">
-            {isSignin ? "Welcome back" : "Create your account"}
-          </h2>
-          <p className="mt-1 text-sm text-muted">
-            {isSignin ? "Sign in to your NeoDraw workspace" : "Start drawing together in seconds"}
-          </p>
+        <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isSignin}
+            className={`auth-tab${isSignin ? " active" : ""}`}
+            onClick={() => switchMode("signin")}
+          >
+            Sign In
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!isSignin}
+            className={`auth-tab${!isSignin ? " active" : ""}`}
+            onClick={() => switchMode("signup")}
+          >
+            Sign Up
+          </button>
         </div>
 
-        {!isSignin && (
-          <input
-            type="text"
-            placeholder="Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            style={inputStyle}
-          />
-        )}
-
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={inputStyle}
-        />
-
-        <input
-          type="password"
-          placeholder="Password (min 8 chars)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={8}
-          style={inputStyle}
-        />
-
-        {error && (
-          <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="mt-1 flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-bold text-black transition-colors hover:bg-brand-hover disabled:opacity-70"
-        >
-          {submitting && <Spinner />}
-          {isSignin ? "Sign In" : "Create Account"}
-        </button>
-
-        <p className="text-center text-sm text-muted">
-          {isSignin ? (
-            <>
-              Don&apos;t have an account?{" "}
-              <Link href="/signup" className="font-semibold text-brand hover:underline">
-                Sign up
-              </Link>
-            </>
-          ) : (
-            <>
-              Already have an account?{" "}
-              <Link href="/signin" className="font-semibold text-brand hover:underline">
-                Sign in
-              </Link>
-            </>
+        <div key={mode} className="auth-form auth-tab-content">
+          {!isSignin && (
+            <div className="auth-field">
+              <label className="auth-label" htmlFor="auth-name">
+                Name
+              </label>
+              <input
+                id="auth-name"
+                type="text"
+                autoComplete="name"
+                placeholder="How we should greet you"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                className="auth-input"
+              />
+            </div>
           )}
-        </p>
+
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="auth-email">
+              Email
+            </label>
+            <input
+              id="auth-email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="auth-input"
+            />
+          </div>
+
+          <div className="auth-field">
+            <label className="auth-label" htmlFor="auth-password">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="auth-password"
+                type={showPassword ? "text" : "password"}
+                autoComplete={isSignin ? "current-password" : "new-password"}
+                placeholder={isSignin ? "Your password" : "Min 8 characters"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                className="auth-input auth-input--pwd"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+                title={showPassword ? "Hide password" : "Show password"}
+                className="auth-eye"
+              >
+                {showPassword ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24M14.5 12.5l5.5 5.5M4 4l16 16" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p key={errorKey} role="alert" className="auth-error">
+              {error}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="primary-btn mt-1 flex w-full items-center justify-center gap-2"
+          >
+            {submitting && <Spinner />}
+            Continue
+          </button>
+        </div>
       </form>
     </div>
   );

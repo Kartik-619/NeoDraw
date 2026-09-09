@@ -32,15 +32,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return this.props.children;
     }
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", gap: "1rem", background: "#1a1a2e", color: "#ddd" }}>
-        <p style={{ color: "#ef4444" }}>Something went wrong.</p>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", gap: "1rem", background: "#000000", color: "#ddd" }}>
+        <p style={{ color: "#ffffff" }}>Something went wrong.</p>
         <code style={{ color: "#888", fontSize: "0.85rem", maxWidth: "40rem", textAlign: "center" }}>{this.state.message}</code>
         <button
           onClick={() => {
             this.setState({ hasError: false, message: "" });
             this.props.onReset?.();
           }}
-          style={{ padding: "0.5rem 1rem", background: "#6366f1", color: "white", border: "none", borderRadius: "0.375rem", cursor: "pointer" }}
+          style={{ padding: "0.5rem 1rem", background: "#ffffff", color: "#000", border: "1px solid #ffffff", borderRadius: "0.375rem", cursor: "pointer" }}
         >
           Try again
         </button>

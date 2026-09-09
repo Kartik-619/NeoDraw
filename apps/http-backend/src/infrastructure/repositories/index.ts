@@ -27,6 +27,10 @@ class TypeOrmRoomRepository implements RoomRepository {
     const room = await db.rooms().findOne({ where: { slug } });
     return room ? this.toRecord(room) : null;
   }
+  async findByAdminId(adminId: string): Promise<RoomRecord[]> {
+    const rooms = await db.rooms().find({ where: { adminId }, order: { updatedAt: "DESC" } });
+    return rooms.map((room) => this.toRecord(room));
+  }
   async create(data: { slug: string; adminId?: string }) {
     const room = db.rooms().create({ slug: data.slug, adminId: data.adminId, editPermission: "anyone" });
     const saved = await db.rooms().save(room);

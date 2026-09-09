@@ -44,6 +44,9 @@ export class Game {
   private viewY = 0;
   private zoom = 1;
   private history = new OperationHistory();
+  private eraserRemoved: PersistedShape[] = [];
+  private eraserPrevX = 0;
+  private eraserPrevY = 0;
   onHistoryChange: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
@@ -86,6 +89,7 @@ export class Game {
   }
 
   setTool(tool: Tool): void {
+    if (this.tool !== tool) this.cancelActiveGesture();
     this.tool = tool;
     this.selectedShapeId = null;
     this.draw();
@@ -408,6 +412,8 @@ export class Game {
         this.ctx.stroke();
         break;
       case "eraser":
+        this.ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
+        this.ctx.fillRect(this.startX, this.startY, this.currentX - this.startX, this.currentY - this.startY);
         this.ctx.strokeStyle = "#ef4444";
         this.ctx.strokeRect(this.startX, this.startY, this.currentX - this.startX, this.currentY - this.startY);
         break;
@@ -455,13 +461,10 @@ export class Game {
     const minY = Math.min(y1, y2);
     const maxY = Math.max(y1, y2);
 
+    const pad = 1 / this.zoom;
     const ids: string[] = [];
     for (const shape of this.shapes) {
-      const bounds = this.getShapeBounds(shape);
-      if (!bounds) continue;
-
-      // Bounding box intersection
-      if (bounds.x < maxX && bounds.x + bounds.w > minX && bounds.y < maxY && bounds.y + bounds.h > minY) {
+      if (shapeIntersectsRect(shape, minX - pad, minY - pad, maxX + pad, maxY + pad)) {
         ids.push(shape.id);
       }
     }
@@ -511,6 +514,8 @@ export class Game {
       return;
     }
 
+    if (e.button !== 0) return;
+
     if (this.readOnly || this.tool === "select") {
       if (e.button === 0 && !this.readOnly) {
         const hit = this.hitTest(x, y);
@@ -553,8 +558,49 @@ export class Game {
       return;
     }
 
+    if (this.tool === "eraser") {
+      this.eraserRemoved = [];
+      this.eraserPrevX = x;
+      this.eraserPrevY = y;
+    }
+
     this.isDrawing = true;
     this.draw();
+  }
+
+  private eraseSweep(x: number, y: number): void {
+    const minX = Math.min(this.eraserPrevX, x);
+    const maxX = Math.max(this.eraserPrevX, x);
+    const minY = Math.min(this.eraserPrevY, y);
+    const maxY = Math.max(this.eraserPrevY, y);
+
+    const ids = this.computeIntersectingIds(minX, minY, maxX, maxY);
+    if (ids.length > 0) {
+      const removed: PersistedShape[] = [];
+      for (const id of ids) {
+        const shape = this.byId.get(id);
+        if (shape) removed.push(shape);
+      }
+      this.eraserRemoved.push(...removed);
+      this.removeShapesByIds(ids);
+      this.sendShapeDeleteMany(ids);
+    }
+
+    this.eraserPrevX = x;
+    this.eraserPrevY = y;
+    this.draw();
+  }
+
+  private cancelActiveGesture(): void {
+    const wasErasing = this.isDrawing && this.tool === "eraser" && this.eraserRemoved.length > 0;
+    this.isDrawing = false;
+    this.isDragging = false;
+    this.isPanning = false;
+    if (wasErasing) {
+      this.history.push({ kind: "delete", shapes: this.eraserRemoved });
+      this.notifyHistoryChange();
+    }
+    this.eraserRemoved = [];
   }
 
   private mouseMoveHandler(e: MouseEvent): void {
@@ -572,6 +618,11 @@ export class Game {
     const y = world.y;
     this.currentX = x;
     this.currentY = y;
+
+    if (this.isDrawing && this.tool === "eraser") {
+      this.eraseSweep(x, y);
+      return;
+    }
 
     if (this.isDragging && this.selectedShapeId) {
       const shape = this.byId.get(this.selectedShapeId);
@@ -611,7 +662,7 @@ export class Game {
     }
   }
 
-  private mouseUpHandler(e: MouseEvent): void {
+  private mouseUpHandler(_e: MouseEvent): void {
     if (this.isPanning) {
       this.isPanning = false;
       return;
@@ -633,22 +684,30 @@ export class Game {
     this.isDrawing = false;
 
     if (this.tool === "eraser") {
-      const rect = this.canvas.getBoundingClientRect();
-      const screen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-      const world = this.screenToWorld(screen.x, screen.y);
-      const ids = this.computeIntersectingIds(this.startX, this.startY, world.x, world.y);
-      if (ids.length > 0) {
-        const removed = ids
-          .map((id) => this.byId.get(id))
-          .filter((s): s is PersistedShape => Boolean(s));
-        this.removeShapesByIds(ids);
-        this.sendShapeDeleteMany(ids);
-        if (removed.length > 0) {
-          this.history.push({ kind: "delete", shapes: removed });
-          this.notifyHistoryChange();
+      const x = this.currentX;
+      const y = this.currentY;
+      const moved = Math.abs(x - this.startX) > 0.5 / this.zoom || Math.abs(y - this.startY) > 0.5 / this.zoom;
+
+      if (!moved) {
+        const ids = this.computeIntersectingIds(x, y, x, y);
+        if (ids.length > 0) {
+          const removed: PersistedShape[] = [];
+          for (const id of ids) {
+            const shape = this.byId.get(id);
+            if (shape) removed.push(shape);
+          }
+          this.eraserRemoved.push(...removed);
+          this.removeShapesByIds(ids);
+          this.sendShapeDeleteMany(ids);
         }
-        this.draw();
       }
+
+      if (this.eraserRemoved.length > 0) {
+        this.history.push({ kind: "delete", shapes: this.eraserRemoved });
+        this.notifyHistoryChange();
+      }
+      this.eraserRemoved = [];
+      this.draw();
       return;
     }
 
@@ -759,8 +818,8 @@ export class Game {
 
   private addListeners(): void {
     this.canvas.addEventListener("mousedown", this.mouseDownHandler);
-    this.canvas.addEventListener("mousemove", this.mouseMoveHandler);
-    this.canvas.addEventListener("mouseup", this.mouseUpHandler);
+    window.addEventListener("mousemove", this.mouseMoveHandler);
+    window.addEventListener("mouseup", this.mouseUpHandler);
     this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
     window.addEventListener("keydown", this.keyDownHandler);
     window.addEventListener("keyup", this.keyUpHandler);
@@ -768,12 +827,163 @@ export class Game {
 
   private removeListeners(): void {
     this.canvas.removeEventListener("mousedown", this.mouseDownHandler);
-    this.canvas.removeEventListener("mousemove", this.mouseMoveHandler);
-    this.canvas.removeEventListener("mouseup", this.mouseUpHandler);
+    window.removeEventListener("mousemove", this.mouseMoveHandler);
+    window.removeEventListener("mouseup", this.mouseUpHandler);
     this.canvas.removeEventListener("wheel", this.wheelHandler);
     window.removeEventListener("keydown", this.keyDownHandler);
     window.removeEventListener("keyup", this.keyUpHandler);
   }
+}
+
+// --- Geometry helpers (world coordinates) ---
+
+interface AABB {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+function aabbOverlap(a: AABB, b: AABB): boolean {
+  return a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
+}
+
+function circleIntersectsRect(
+  centerX: number,
+  centerY: number,
+  radius: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): boolean {
+  const nearestX = Math.max(minX, Math.min(maxX, centerX));
+  const nearestY = Math.max(minY, Math.min(maxY, centerY));
+  const dx = centerX - nearestX;
+  const dy = centerY - nearestY;
+  return dx * dx + dy * dy <= radius * radius;
+}
+
+function segmentIntersectsRect(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): boolean {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const p = [-dx, dx, -dy, dy] as const;
+  const q = [x1 - minX, maxX - x1, y1 - minY, maxY - y1] as const;
+  let t0 = 0;
+  let t1 = 1;
+
+  for (let i = 0; i < 4; i++) {
+    const pi = p[i]!;
+    const qi = q[i]!;
+    if (pi === 0) {
+      if (qi < 0) return false;
+    } else {
+      const r = qi / pi;
+      if (pi < 0) {
+        if (r > t1) return false;
+        if (r > t0) t0 = r;
+      } else {
+        if (r < t0) return false;
+        if (r < t1) t1 = r;
+      }
+    }
+  }
+  return t0 <= t1;
+}
+
+function rectPoints(minX: number, minY: number, maxX: number, maxY: number): Point[] {
+  return [
+    { x: minX, y: minY },
+    { x: maxX, y: minY },
+    { x: maxX, y: maxY },
+    { x: minX, y: maxY },
+  ];
+}
+
+function diamondPoints(shape: { centerX: number; centerY: number; width: number; height: number }): Point[] {
+  const hw = shape.width / 2;
+  const hh = shape.height / 2;
+  return [
+    { x: shape.centerX, y: shape.centerY - hh },
+    { x: shape.centerX + hw, y: shape.centerY },
+    { x: shape.centerX, y: shape.centerY + hh },
+    { x: shape.centerX - hw, y: shape.centerY },
+  ];
+}
+
+function polygonsOverlap(a: Point[], b: Point[]): boolean {
+  return !isSeparated(a, b) && !isSeparated(b, a);
+}
+
+function isSeparated(a: Point[], b: Point[]): boolean {
+  const count = a.length;
+  for (let i = 0; i < count; i++) {
+    const p1 = a[i];
+    const p2 = a[(i + 1) % count];
+    if (!p1 || !p2) continue;
+    const axisX = -(p2.y - p1.y);
+    const axisY = p2.x - p1.x;
+
+    let minA = Infinity;
+    let maxA = -Infinity;
+    let minB = Infinity;
+    let maxB = -Infinity;
+
+    for (const pt of a) {
+      const d = pt.x * axisX + pt.y * axisY;
+      if (d < minA) minA = d;
+      if (d > maxA) maxA = d;
+    }
+    for (const pt of b) {
+      const d = pt.x * axisX + pt.y * axisY;
+      if (d < minB) minB = d;
+      if (d > maxB) maxB = d;
+    }
+    if (maxA < minB || maxB < minA) return true;
+  }
+  return false;
+}
+
+function shapeIntersectsRect(shape: PersistedShape, minX: number, minY: number, maxX: number, maxY: number): boolean {
+  switch (shape.type) {
+    case "rect":
+    case "text": {
+      const bounds = getShapeBoundsStatic(shape);
+      return aabbOverlap({ minX, minY, maxX, maxY }, { minX: bounds.x, minY: bounds.y, maxX: bounds.x + bounds.w, maxY: bounds.y + bounds.h });
+    }
+    case "circle":
+      return circleIntersectsRect(shape.centerX, shape.centerY, shape.radius, minX, minY, maxX, maxY);
+    case "diamond":
+      return polygonsOverlap(rectPoints(minX, minY, maxX, maxY), diamondPoints(shape));
+    case "pencil":
+      return segmentIntersectsRect(shape.startX, shape.startY, shape.endX, shape.endY, minX, minY, maxX, maxY);
+  }
+}
+
+function getShapeBoundsStatic(shape: Extract<PersistedShape, { type: "rect" } | { type: "text" }>): { x: number; y: number; w: number; h: number } {
+  if (shape.type === "text") {
+    return { x: shape.x, y: shape.y - shape.fontSize, w: shape.text.length * shape.fontSize * 0.6, h: shape.fontSize };
+  }
+  return {
+    x: Math.min(shape.x, shape.x + shape.width),
+    y: Math.min(shape.y, shape.y + shape.height),
+    w: Math.abs(shape.width),
+    h: Math.abs(shape.height),
+  };
 }
 
 export { PRESET_COLORS };

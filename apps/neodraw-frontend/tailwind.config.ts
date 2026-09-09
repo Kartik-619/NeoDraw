@@ -10,9 +10,9 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: "#05CE81",
-          hover: "#04B570",
-          soft: "rgba(5, 206, 129, 0.12)",
+          DEFAULT: "#ffffff",
+          hover: "#ececec",
+          soft: "rgba(255, 255, 255, 0.12)",
         },
         ink: "#000000",
         paper: "#FFFFFF",

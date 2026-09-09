@@ -122,8 +122,8 @@ export function RoomCanvas({ roomId }: RoomCanvasProps) {
   if (error) {
     return (
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", gap: "1rem", background: "#ffffff" }}>
-        <p style={{ color: "#ef4444" }}>{error}</p>
-        <button onClick={handleRetry} style={{ padding: "0.5rem 1rem", background: "#05CE81", color: "#000", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontWeight: 600 }}>
+        <p style={{ color: "#111111", fontSize: "1rem" }}>{error}</p>
+        <button onClick={handleRetry} style={{ padding: "0.5rem 1rem", background: "#ffffff", color: "#000", border: "1px solid #000", borderRadius: "0.375rem", cursor: "pointer", fontWeight: 600 }}>
           Retry
         </button>
       </div>

@@ -99,6 +99,12 @@ async function main() {
     res.status(201).json({ roomId: room.id, slug: room.slug });
   });
 
+  // List rooms where the current user is admin
+  app.get("/rooms", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const rooms = await container.rooms.findByAdminId(req.userId!);
+    res.json({ rooms });
+  });
+
   // Resolve room by slug (creates if missing)
   async function resolveRoomBySlug(slug: string): Promise<RoomRecord> {
     const existing = await container.rooms.findBySlug(slug);

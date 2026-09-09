@@ -30,9 +30,9 @@ export function IconButton({ label, active, disabled, onClick }: IconButtonProps
       title={label}
       style={{
         padding: "0.375rem 0.625rem",
-        background: active ? "#05CE81" : "transparent",
+        background: active ? "#ffffff" : "transparent",
         color: disabled ? "#555" : active ? "#000000" : "#dddddd",
-        border: active ? "2px solid #05CE81" : "2px solid transparent",
+        border: active ? "2px solid #ffffff" : "2px solid transparent",
         borderRadius: "0.375rem",
         cursor: disabled ? "not-allowed" : "pointer",
         fontSize: "1.1rem",

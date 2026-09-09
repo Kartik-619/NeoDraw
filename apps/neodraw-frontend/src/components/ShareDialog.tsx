@@ -82,9 +82,9 @@ export function ShareDialog({ roomSlug, isAdmin, editPermission, onPermissionCha
             onClick={handleCopyLink}
             style={{
               padding: "0.5rem 0.75rem",
-              background: "#05CE81",
+              background: "#ffffff",
               color: "#000",
-              border: "none",
+              border: "1px solid #ffffff",
               borderRadius: "0.375rem",
               cursor: "pointer",
               fontSize: "0.875rem",

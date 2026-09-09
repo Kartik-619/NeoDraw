@@ -8,6 +8,7 @@ import { exportPng, exportSvg } from "@/draw/export";
 import { IconButton } from "./IconButton";
 import { ShareDialog } from "./ShareDialog";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { useRouter } from "next/navigation";
 
 interface CanvasProps {
   roomId: string;
@@ -23,6 +24,7 @@ interface CanvasProps {
 const tools: Tool[] = ["rect", "circle", "diamond", "pencil", "text", "select", "eraser"];
 
 export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission, isReconnecting, reconnectAttempt, onPermissionChange }: CanvasProps) {
+  const router = useRouter();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameRef = useRef<Game | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("select");
@@ -149,6 +151,14 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
     <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", background: "#000000" }}>
       {/* Toolbar */}
       <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", padding: "0.5rem 1rem", gap: "0.5rem", background: "#0A0A0A", borderBottom: "1px solid rgba(255,255,255,0.12)", zIndex: 10 }}>
+        <button
+          onClick={() => router.push("/dashboard")}
+          title="Back to dashboard"
+          style={{ display: "flex", alignItems: "center", gap: "0.35rem", padding: "0.375rem 0.75rem", background: "transparent", color: "#dddddd", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}
+        >
+          ← Dashboard
+        </button>
+
         <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
           {tools.map((tool) => (
             <IconButton
@@ -200,7 +210,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
                 height: 20,
                 borderRadius: "50%",
                 background: c,
-                border: color === c ? "2px solid #05CE81" : "1px solid rgba(255,255,255,0.3)",
+                border: color === c ? "2px solid #ffffff" : "1px solid rgba(255,255,255,0.3)",
                 cursor: isViewOnly ? "not-allowed" : "pointer",
               }}
             />
@@ -218,12 +228,12 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "1rem" }}>
           {isViewOnly && (
-            <span style={{ color: "#fbbf24", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(251,191,36,0.12)", borderRadius: "999px" }}>
+            <span style={{ color: "#ffffff", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "999px" }}>
               View only
             </span>
           )}
           {isReconnecting && (
-            <span style={{ color: "#fbbf24", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(251,191,36,0.12)", borderRadius: "999px" }}>
+            <span style={{ color: "#ffffff", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "999px" }}>
               Reconnecting{reconnectAttempt > 1 ? `… (${reconnectAttempt})` : "…"}
             </span>
           )}
@@ -231,7 +241,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
           <button onClick={handleCopyLink} style={{ padding: "0.375rem 0.75rem", background: "#1F1F1F", color: "white", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem" }}>
             {copiedSlug ? "Copied!" : "Copy Link"}
           </button>
-          <button onClick={() => setShowShare(true)} style={{ padding: "0.375rem 0.75rem", background: "#05CE81", color: "black", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}>
+          <button onClick={() => setShowShare(true)} style={{ padding: "0.375rem 0.75rem", background: "#ffffff", color: "#000", border: "1px solid #ffffff", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}>
             Share
           </button>
         </div>

@@ -27,7 +27,6 @@ export default function JoinRoomPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6 pt-16">
-      <div className="pointer-events-none fixed left-1/2 top-[-10rem] h-96 w-96 -translate-x-1/2 rounded-full bg-brand/20 blur-[120px]" />
       <form
         onSubmit={handleSubmit}
         className="relative flex w-full max-w-md flex-col gap-4 rounded-2xl border border-white/10 bg-surface/70 p-8 backdrop-blur"
