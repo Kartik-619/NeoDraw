@@ -1,3 +1,4 @@
+import "@repo/backend-common/env";
 import { WebSocketServer, WebSocket } from "ws";
 import jwt from "jsonwebtoken";
 import { parse } from "cookie";

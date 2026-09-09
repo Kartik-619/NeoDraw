@@ -125,15 +125,13 @@ pnpm format         # Prettier formatting
 
 ### Phase 9: Advanced Features
 - [ ] Layer groups / z-ordering
-- [ ] Image upload to canvas
-- [ ] Sticky notes
+
 - [ ] Arrow connectors
 - [ ] Curved pencil paths (freehand)
 - [ ] Grid snapping
 - [ ] Keyboard shortcuts
 - [ ] Collaborative cursors (show other users' cursor positions)
-- [ ] Board templates
-- [ ] PDF export
+
 
 ### Phase 10: Testing & Quality
 - [ ] E2E tests (Playwright) for critical flows

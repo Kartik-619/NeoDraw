@@ -4,9 +4,16 @@ import { Room } from "./entities/Room";
 import { Chat } from "./entities/Chat";
 import { RoomShape } from "./entities/RoomShape";
 
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  throw new Error(
+    "DATABASE_URL is not set. Copy .env.example to .env and configure your PostgreSQL connection URL.",
+  );
+}
+
 export const AppDataSource = new DataSource({
   type: "postgres",
-  url: process.env.DATABASE_URL,
+  url: databaseUrl,
   synchronize: true,
   logging: false,
   entities: [User, Room, Chat, RoomShape],

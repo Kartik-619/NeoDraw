@@ -9,10 +9,10 @@ export class Chat {
   @Column()
   message!: string;
 
-  @Column()
+  @Column({ nullable: true })
   userId!: string;
 
-  @Column()
+  @Column({ nullable: true })
   roomId!: number;
 
   @CreateDateColumn()

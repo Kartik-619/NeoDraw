@@ -175,6 +175,10 @@ importers:
         version: 5.9.3
 
   packages/backand-common:
+    dependencies:
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
