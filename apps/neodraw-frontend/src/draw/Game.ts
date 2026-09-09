@@ -6,7 +6,7 @@ import { OperationHistory, type HistoryEntry } from "./History";
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 
-const PRESET_COLORS = ["#ffffff", "#f5564e", "#fecb2f", "#4cc9f0", "#4ade80", "#a78bfa"];
+const PRESET_COLORS = ["#000000", "#f5564e", "#fecb2f", "#4cc9f0", "#05ce81", "#a78bfa"];
 
 export interface HistoryState {
   canUndo: boolean;
@@ -39,7 +39,7 @@ export class Game {
   private panStartViewX = 0;
   private panStartViewY = 0;
   private spaceHeld = false;
-  private color = "#ffffff";
+  private color = "#000000";
   private viewX = 0;
   private viewY = 0;
   private zoom = 1;
@@ -313,13 +313,13 @@ export class Game {
 
   private clearCanvas(): void {
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-    this.ctx.fillStyle = "#1a1a2e";
+    this.ctx.fillStyle = "#ffffff";
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.ctx.setTransform(this.zoom, 0, 0, this.zoom, this.viewX, this.viewY);
   }
 
   private drawShape(shape: PersistedShape): void {
-    const color = shape.color ?? "#ffffff";
+    const color = shape.color ?? "#000000";
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = 2 / this.zoom;
 
@@ -354,8 +354,7 @@ export class Game {
         this.ctx.font = `${shape.fontSize}px system-ui`;
         this.ctx.fillText(shape.text, shape.x, shape.y);
         this.ctx.fillStyle = "#ffffff";
-        break;
-    }
+        break;    }
   }
 
   private drawSelectionBox(shape: PersistedShape): void {

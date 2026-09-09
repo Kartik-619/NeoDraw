@@ -72,7 +72,18 @@ async function main() {
       await container.rooms.create({ slug, adminId: user.id });
     }
 
-    res.json({ slug, token });
+    res.json({ slug, token, name: user.name });
+  });
+
+  // --- Current user ---
+
+  app.get("/user/me", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const user = await container.users.findById(req.userId!);
+    if (!user) {
+      res.status(404).json({ message: "User not found" });
+      return;
+    }
+    res.json({ id: user.id, name: user.name, email: user.email });
   });
 
   // --- Room ---

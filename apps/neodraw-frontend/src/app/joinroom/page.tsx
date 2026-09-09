@@ -26,33 +26,33 @@ export default function JoinRoomPage() {
   }
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "400px", padding: "2rem", background: "#1e1e2e", borderRadius: "0.75rem" }}>
-        <h2 style={{ fontSize: "1.5rem", fontWeight: "bold", textAlign: "center" }}>Join a Room</h2>
+    <div className="flex min-h-screen items-center justify-center px-6 pt-16">
+      <div className="pointer-events-none fixed left-1/2 top-[-10rem] h-96 w-96 -translate-x-1/2 rounded-full bg-brand/20 blur-[120px]" />
+      <form
+        onSubmit={handleSubmit}
+        className="relative flex w-full max-w-md flex-col gap-4 rounded-2xl border border-white/10 bg-surface/70 p-8 backdrop-blur"
+      >
+        <h2 className="text-center text-2xl font-extrabold text-white">Join a Room</h2>
+        <p className="-mt-2 text-center text-sm text-muted">Paste a room link or slug to start collaborating</p>
         <input
           type="text"
           placeholder="Paste room link or slug"
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
-          style={{ padding: "0.5rem", borderRadius: "0.375rem", border: "1px solid #444", background: "#2a2a3e", color: "white" }}
+          style={{
+            padding: "0.75rem 1rem",
+            borderRadius: "0.75rem",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "#0E0E0E",
+            color: "white",
+            fontSize: "0.95rem",
+            outline: "none",
+          }}
         />
         <button
           type="submit"
           disabled={joining}
-          style={{
-            padding: "0.5rem",
-            borderRadius: "0.375rem",
-            background: "#6366f1",
-            color: "white",
-            border: "none",
-            fontWeight: 600,
-            cursor: joining ? "progress" : "pointer",
-            opacity: joining ? 0.7 : 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.5rem",
-          }}
+          className="flex items-center justify-center gap-2 rounded-xl bg-brand py-3 font-bold text-black transition-colors hover:bg-brand-hover disabled:opacity-70"
         >
           {joining && <Spinner />}
           Join

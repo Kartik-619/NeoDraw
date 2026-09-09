@@ -50,8 +50,8 @@ export function ShareDialog({ roomSlug, isAdmin, editPermission, onPermissionCha
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#1f1f38",
-          border: "1px solid #333",
+          background: "#0E0E0E",
+          border: "1px solid rgba(255,255,255,0.12)",
           borderRadius: "0.75rem",
           padding: "1.5rem",
           width: "24rem",
@@ -71,8 +71,8 @@ export function ShareDialog({ roomSlug, isAdmin, editPermission, onPermissionCha
             style={{
               flex: 1,
               padding: "0.5rem 0.75rem",
-              background: "#16162a",
-              border: "1px solid #333",
+              background: "#111111",
+              border: "1px solid rgba(255,255,255,0.15)",
               borderRadius: "0.375rem",
               color: "#ddd",
               fontSize: "0.875rem",
@@ -82,12 +82,13 @@ export function ShareDialog({ roomSlug, isAdmin, editPermission, onPermissionCha
             onClick={handleCopyLink}
             style={{
               padding: "0.5rem 0.75rem",
-              background: "#6366f1",
-              color: "white",
+              background: "#05CE81",
+              color: "#000",
               border: "none",
               borderRadius: "0.375rem",
               cursor: "pointer",
               fontSize: "0.875rem",
+              fontWeight: 600,
             }}
           >
             {copied ? "Copied!" : "Copy"}
@@ -130,9 +131,9 @@ export function ShareDialog({ roomSlug, isAdmin, editPermission, onPermissionCha
           onClick={onClose}
           style={{
             padding: "0.5rem",
-            background: "#374151",
+            background: "rgba(255,255,255,0.1)",
             color: "white",
-            border: "none",
+            border: "1px solid rgba(255,255,255,0.15)",
             borderRadius: "0.375rem",
             cursor: "pointer",
             fontSize: "0.875rem",

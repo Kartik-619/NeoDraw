@@ -7,11 +7,11 @@ interface CanvasErrorProps {
 
 export default function CanvasError({ reset }: CanvasErrorProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", gap: "1rem", background: "#1a1a2e", color: "#ddd" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", gap: "1rem", background: "#ffffff", color: "#333" }}>
       <p style={{ color: "#ef4444" }}>Something went wrong loading this board.</p>
       <button
         onClick={reset}
-        style={{ padding: "0.5rem 1rem", background: "#6366f1", color: "white", border: "none", borderRadius: "0.375rem", cursor: "pointer" }}
+        style={{ padding: "0.5rem 1.25rem", background: "#05CE81", color: "#000", border: "none", borderRadius: "0.5rem", cursor: "pointer", fontWeight: 600 }}
       >
         Try again
       </button>

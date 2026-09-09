@@ -15,7 +15,7 @@ export function Skeleton({ width = "100%", height = "1rem", style }: SkeletonPro
         width,
         height,
         borderRadius: "0.375rem",
-        background: "linear-gradient(90deg, #2a2a3e 25%, #3a3a52 50%, #2a2a3e 75%)",
+        background: "linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%)",
         backgroundSize: "200% 100%",
         animation: "neodrawShimmer 1.5s infinite",
         ...style,
@@ -32,8 +32,8 @@ export function Spinner() {
         display: "inline-block",
         width: "1rem",
         height: "1rem",
-        border: "2px solid rgba(255,255,255,0.3)",
-        borderTopColor: "#fff",
+        border: "2px solid rgba(0,0,0,0.2)",
+        borderTopColor: "#000",
         borderRadius: "50%",
         animation: "neodrawSpin 0.7s linear infinite",
       }}
@@ -43,8 +43,8 @@ export function Spinner() {
 
 export function CanvasSkeleton() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#1a1a2e" }}>
-      <div style={{ display: "flex", gap: "0.5rem", padding: "0.5rem 1rem", background: "#16162a", borderBottom: "1px solid #333" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#ffffff" }}>
+      <div style={{ display: "flex", gap: "0.5rem", padding: "0.5rem 1rem", background: "#0a0a0a", borderBottom: "1px solid rgba(255,255,255,0.12)" }}>
         <Skeleton width={38} height={34} />
         <Skeleton width={38} height={34} />
         <Skeleton width={38} height={34} />

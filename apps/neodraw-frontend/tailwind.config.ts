@@ -9,10 +9,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#1a1a2e",
-        surface: "#16162a",
-        foreground: "#ededed",
-        accent: "#6366f1",
+        brand: {
+          DEFAULT: "#05CE81",
+          hover: "#04B570",
+          soft: "rgba(5, 206, 129, 0.12)",
+        },
+        ink: "#000000",
+        paper: "#FFFFFF",
+        surface: "#0E0E0E",
+        muted: "#8A8A8A",
       },
     },
   },

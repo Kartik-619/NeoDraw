@@ -28,7 +28,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [memberCount, setMemberCount] = useState(initialMembers.length);
   const [copiedSlug, setCopiedSlug] = useState(false);
-  const [color, setColor] = useState("#ffffff");
+  const [color, setColor] = useState("#000000");
   const [zoom, setZoom] = useState(1);
   const [canUndoRedo, setCanUndoRedo] = useState<HistoryState>({ canUndo: false, canRedo: false });
   const [showShare, setShowShare] = useState(false);
@@ -146,9 +146,9 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
   }
 
   return (
-    <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", background: "#1a1a2e" }}>
+    <div style={{ width: "100vw", height: "100vh", display: "flex", flexDirection: "column", background: "#000000" }}>
       {/* Toolbar */}
-      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", padding: "0.5rem 1rem", gap: "0.5rem", background: "#16162a", borderBottom: "1px solid #333", zIndex: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", padding: "0.5rem 1rem", gap: "0.5rem", background: "#0A0A0A", borderBottom: "1px solid rgba(255,255,255,0.12)", zIndex: 10 }}>
         <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
           {tools.map((tool) => (
             <IconButton
@@ -161,24 +161,24 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
           ))}
         </div>
 
-        <div style={{ width: 1, height: 28, background: "#333", margin: "0 0.25rem" }} />
+        <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.12)", margin: "0 0.25rem" }} />
 
         <IconButton label="undo" disabled={!canUndoRedo.canUndo} onClick={handleUndo} />
         <IconButton label="redo" disabled={!canUndoRedo.canRedo} onClick={handleRedo} />
 
-        <div style={{ width: 1, height: 28, background: "#333", margin: "0 0.25rem" }} />
+        <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.12)", margin: "0 0.25rem" }} />
 
         <IconButton label="zoom-out" onClick={handleZoomOut} />
         <button
           onClick={handleResetZoom}
           title="Reset zoom (Ctrl+0)"
-          style={{ padding: "0.25rem 0.5rem", background: "transparent", color: "#aaa", border: "1px solid #333", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.75rem", minWidth: "3rem" }}
+          style={{ padding: "0.25rem 0.5rem", background: "transparent", color: "#aaa", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.75rem", minWidth: "3rem" }}
         >
           {Math.round(zoom * 100)}%
         </button>
         <IconButton label="zoom-in" onClick={handleZoomIn} />
 
-        <div style={{ width: 1, height: 28, background: "#333", margin: "0 0.25rem" }} />
+        <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.12)", margin: "0 0.25rem" }} />
 
         <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
           <input
@@ -187,7 +187,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
             disabled={isViewOnly}
             onChange={(e) => setColor(e.target.value)}
             title="Stroke color"
-            style={{ width: 28, height: 28, padding: 0, border: "1px solid #333", borderRadius: "0.375rem", background: "transparent", cursor: isViewOnly ? "not-allowed" : "pointer" }}
+            style={{ width: 28, height: 28, padding: 0, border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", background: "transparent", cursor: isViewOnly ? "not-allowed" : "pointer" }}
           />
           {PRESET_COLORS.map((c) => (
             <button
@@ -200,7 +200,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
                 height: 20,
                 borderRadius: "50%",
                 background: c,
-                border: color === c ? "2px solid #6366f1" : "1px solid #333",
+                border: color === c ? "2px solid #05CE81" : "1px solid rgba(255,255,255,0.3)",
                 cursor: isViewOnly ? "not-allowed" : "pointer",
               }}
             />
@@ -208,40 +208,40 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
         </div>
 
         <div style={{ display: "flex", gap: "0.25rem" }}>
-          <button onClick={handleExportPng} title="Export as PNG" style={{ padding: "0.375rem 0.625rem", background: "transparent", color: "#aaa", border: "1px solid #333", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.8rem" }}>
+          <button onClick={handleExportPng} title="Export as PNG" style={{ padding: "0.375rem 0.625rem", background: "transparent", color: "#aaa", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.8rem" }}>
             PNG
           </button>
-          <button onClick={handleExportSvg} title="Export as SVG" style={{ padding: "0.375rem 0.625rem", background: "transparent", color: "#aaa", border: "1px solid #333", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.8rem" }}>
+          <button onClick={handleExportSvg} title="Export as SVG" style={{ padding: "0.375rem 0.625rem", background: "transparent", color: "#aaa", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.8rem" }}>
             SVG
           </button>
         </div>
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "1rem" }}>
           {isViewOnly && (
-            <span style={{ color: "#f59e0b", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(245,158,11,0.12)", borderRadius: "999px" }}>
+            <span style={{ color: "#fbbf24", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(251,191,36,0.12)", borderRadius: "999px" }}>
               View only
             </span>
           )}
           {isReconnecting && (
-            <span style={{ color: "#f59e0b", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(245,158,11,0.12)", borderRadius: "999px" }}>
+            <span style={{ color: "#fbbf24", fontSize: "0.875rem", padding: "0.25rem 0.6rem", background: "rgba(251,191,36,0.12)", borderRadius: "999px" }}>
               Reconnecting{reconnectAttempt > 1 ? `… (${reconnectAttempt})` : "…"}
             </span>
           )}
           <span style={{ color: "#888", fontSize: "0.875rem" }}>{memberCount} online</span>
-          <button onClick={handleCopyLink} style={{ padding: "0.375rem 0.75rem", background: "#374151", color: "white", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem" }}>
+          <button onClick={handleCopyLink} style={{ padding: "0.375rem 0.75rem", background: "#1F1F1F", color: "white", border: "1px solid rgba(255,255,255,0.15)", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem" }}>
             {copiedSlug ? "Copied!" : "Copy Link"}
           </button>
-          <button onClick={() => setShowShare(true)} style={{ padding: "0.375rem 0.75rem", background: "#6366f1", color: "white", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem" }}>
+          <button onClick={() => setShowShare(true)} style={{ padding: "0.375rem 0.75rem", background: "#05CE81", color: "black", border: "none", borderRadius: "0.375rem", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}>
             Share
           </button>
         </div>
       </div>
 
       {/* Canvas */}
-      <div style={{ flex: 1, position: "relative" }}>
+      <div style={{ flex: 1, position: "relative", background: "#ffffff" }}>
         <canvas
           ref={canvasRef}
-          style={{ width: "100%", height: "100%", display: "block", cursor: cursorMap[activeTool] }}
+          style={{ width: "100%", height: "100%", display: "block", cursor: cursorMap[activeTool], background: "#ffffff" }}
         />
         {isViewOnly && (
           <span
@@ -250,8 +250,8 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
               bottom: "1rem",
               left: "50%",
               transform: "translateX(-50%)",
-              background: "rgba(0,0,0,0.6)",
-              color: "#aaa",
+              background: "rgba(0,0,0,0.7)",
+              color: "#fff",
               fontSize: "0.8rem",
               padding: "0.35rem 0.75rem",
               borderRadius: "999px",

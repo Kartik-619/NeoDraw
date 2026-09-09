@@ -7,7 +7,10 @@ export interface AuthRequest extends Request {
 }
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction): void {
-  const token = req.cookies?.token;
+  const cookieToken = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+  const token = bearerToken ?? cookieToken;
   if (!token) {
     res.status(403).json({ message: "Not authenticated" });
     return;
