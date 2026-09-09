@@ -47,6 +47,7 @@ export class Game {
   private eraserRemoved: PersistedShape[] = [];
   private eraserPrevX = 0;
   private eraserPrevY = 0;
+  private destroyed = false;
   onHistoryChange: (() => void) | null = null;
 
   constructor(canvas: HTMLCanvasElement, roomId: string, socket: WebSocket) {
@@ -67,6 +68,7 @@ export class Game {
 
   async init(): Promise<void> {
     const shapes = await getExistingShapes(this.roomId);
+    if (this.destroyed) return;
     for (const shape of shapes) {
       this.upsertShape(shape);
     }
@@ -77,6 +79,7 @@ export class Game {
   }
 
   destroy(): void {
+    this.destroyed = true;
     this.removeListeners();
   }
 

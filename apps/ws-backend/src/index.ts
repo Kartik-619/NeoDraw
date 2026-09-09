@@ -13,6 +13,7 @@ interface ConnectedUser {
   userId: string;
   rooms: string[];
   ws: WebSocket;
+  queue: Promise<void>;
 }
 
 const users: Map<WebSocket, ConnectedUser> = new Map();
@@ -125,7 +126,7 @@ async function handleMessage(ws: WebSocket, user: ConnectedUser, raw: string): P
       const entity = db.shapes().create({ id, roomId: room.id, userId, data: rest as Record<string, unknown> });
       await db.shapes().save(entity);
 
-      broadcastToRoom(roomId, { type: "shape_add", roomId, shape });
+      broadcastToRoom(roomId, { type: "shape_add", roomId, shape }, user.userId);
       break;
     }
     case "shape_update": {
@@ -142,7 +143,7 @@ async function handleMessage(ws: WebSocket, user: ConnectedUser, raw: string): P
       await db.shapes().save(existing);
 
       const updated = toPersistedShape(existing);
-      broadcastToRoom(roomId, { type: "shape_update", roomId, shape: updated });
+      broadcastToRoom(roomId, { type: "shape_update", roomId, shape: updated }, user.userId);
       break;
     }
     case "shape_delete": {
@@ -153,7 +154,7 @@ async function handleMessage(ws: WebSocket, user: ConnectedUser, raw: string): P
       if (!room || !canEdit(room, user.userId)) return;
 
       await db.shapes().delete({ id: shapeId, roomId: room.id });
-      broadcastToRoom(roomId, { type: "shape_delete", roomId, shapeId });
+      broadcastToRoom(roomId, { type: "shape_delete", roomId, shapeId }, user.userId);
       break;
     }
     case "shape_delete_many": {
@@ -164,7 +165,7 @@ async function handleMessage(ws: WebSocket, user: ConnectedUser, raw: string): P
       if (!room || !canEdit(room, user.userId)) return;
 
       await db.shapes().delete({ id: In(shapeIds), roomId: room.id });
-      broadcastToRoom(roomId, { type: "shape_delete_many", roomId, shapeIds });
+      broadcastToRoom(roomId, { type: "shape_delete_many", roomId, shapeIds }, user.userId);
       break;
     }
   }
@@ -209,13 +210,16 @@ async function main(): Promise<void> {
       return;
     }
 
-    const user: ConnectedUser = { userId, rooms: [], ws };
+    const user: ConnectedUser = { userId, rooms: [], ws, queue: Promise.resolve() };
     users.set(ws, user);
 
     send(ws, { type: "connection", userId });
 
     ws.on("message", (data) => {
-      handleMessage(ws, user, data.toString()).catch(console.error);
+      const raw = data.toString();
+      user.queue = user.queue
+        .then(() => handleMessage(ws, user, raw))
+        .catch(console.error);
     });
 
     ws.on("close", () => {
