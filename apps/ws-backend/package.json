@@ -5,7 +5,8 @@
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "dev": "tsx watch src/index.ts",
+    "start": "node dist/run.js",
+    "dev": "tsx watch src/run.ts",
     "lint": "eslint .",
     "check-types": "tsc --noEmit --project tsconfig.json"
   },

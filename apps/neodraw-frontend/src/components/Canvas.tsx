@@ -78,7 +78,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "user_joined" || msg.type === "user_left") {
-          setMemberCount((c) => msg.type === "user_joined" ? c + 1 : Math.max(0, c - 1));
+          setMemberCount(msg.members.length);
         }
         if (msg.type === "joined_room") {
           setMemberCount(msg.members.length);

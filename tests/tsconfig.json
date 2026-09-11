@@ -4,7 +4,18 @@
     "outDir": "./dist",
     "rootDir": ".",
     "emitDecoratorMetadata": true,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "jsx": "react-jsx",
+    "lib": ["dom", "dom.iterable", "esnext"]
   },
-  "include": ["unit/**/*", "integration/**/*", "helpers/**/*"]
+  "include": [
+    "unit/**/*",
+    "integration/**/*",
+    "ws/**/*",
+    "load/**/*",
+    "security/**/*",
+    "frontend/**/*",
+    "e2e/**/*",
+    "helpers/**/*"
+  ]
 }

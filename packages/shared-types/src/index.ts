@@ -33,8 +33,8 @@ export type ClientMessage =
 export type ServerShapeMessage =
   | { type: "connection"; userId: string }
   | { type: "joined_room"; roomId: string; room: RoomInfo; members: string[]; shapes: PersistedShape[] }
-  | { type: "user_joined"; userId: string; roomId: string }
-  | { type: "user_left"; userId: string; roomId: string }
+  | { type: "user_joined"; userId: string; roomId: string; members: string[] }
+  | { type: "user_left"; userId: string; roomId: string; members: string[] }
   | { type: "chat"; message: string; roomId: string; userId: string; createdAt: string }
   | { type: "shape_add"; roomId: string; shape: PersistedShape }
   | { type: "shape_update"; roomId: string; shape: PersistedShape }
