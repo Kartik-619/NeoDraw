@@ -1,6 +1,6 @@
 import "@repo/backend-common/env";
-import { getContainer } from "./application/container";
-import { createApp } from "./app";
+import { getContainer } from "./application/container.js";
+import { createApp } from "./app.js";
 
 async function main() {
   const container = await getContainer();

@@ -6,9 +6,9 @@ import bcrypt from "bcrypt";
 import { CreateUserSchema, SignInSchema, CreateRoomSchema } from "@repo/common";
 import { JWT_SECRET } from "@repo/backend-common";
 import { isValidShape, isValidPersistedShape, newId, canEditRoom, type EditPermission } from "@repo/shared-types";
-import type { Container } from "./application/container";
-import type { RoomRecord } from "./application/repositories";
-import { authMiddleware, type AuthRequest } from "./middleware";
+import type { Container } from "./application/container.js";
+import type { RoomRecord } from "./application/repositories.js";
+import { authMiddleware, type AuthRequest } from "./middleware.js";
 
 export function createApp(container: Container): express.Express {
   const app = express();

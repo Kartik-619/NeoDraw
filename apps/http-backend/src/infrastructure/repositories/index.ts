@@ -1,8 +1,8 @@
 import { In } from "typeorm";
 import { initializeDatabase, db, toPersistedShape } from "@repo/db";
 import type { PersistedShape, Shape, EditPermission } from "@repo/shared-types";
-import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository, RoomRecord } from "../../application/repositories";
-import type { Container } from "../../application/container";
+import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository, RoomRecord } from "../../application/repositories.js";
+import type { Container } from "../../application/container.js";
 
 class TypeOrmUserRepository implements UserRepository {
   async findById(id: string) {

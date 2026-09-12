@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Express } from "express";
-import { getContainer } from "../src/application/container";
-import { createApp } from "../src/app";
+import { getContainer } from "../src/application/container.js";
+import { createApp } from "../src/app.js";
 
 let app: Express | null = null;
 

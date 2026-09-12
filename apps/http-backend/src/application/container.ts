@@ -1,4 +1,4 @@
-import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository } from "./repositories";
+import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository } from "./repositories.js";
 
 export interface Container {
   users: UserRepository;
@@ -18,7 +18,7 @@ export function getContainer(): Promise<Container> {
 
   // Lazy-load the TypeORM adapter only when the app actually boots.
   // Tests inject a memory container via setContainer and never trigger this.
-  return import("../infrastructure/repositories/index").then((m) => {
+  return import("../infrastructure/repositories/index.js").then((m) => {
     if (container) return container;
     return m.buildTypeOrmContainer();
   });
