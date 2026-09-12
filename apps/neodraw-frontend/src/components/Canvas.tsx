@@ -21,7 +21,7 @@ interface CanvasProps {
   onPermissionChange: (permission: EditPermission) => void;
 }
 
-const tools: Tool[] = ["rect", "circle", "diamond", "pencil", "text", "select", "eraser"];
+const tools: Tool[] = ["rect", "circle", "diamond", "pencil", "freehand", "text", "select", "eraser"];
 
 export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission, isReconnecting, reconnectAttempt, onPermissionChange }: CanvasProps) {
   const router = useRouter();
@@ -95,6 +95,7 @@ export function Canvas({ roomId, socket, initialMembers, isAdmin, editPermission
     circle: "crosshair",
     diamond: "crosshair",
     pencil: "crosshair",
+    freehand: "crosshair",
     text: "text",
     select: "default",
     eraser: "crosshair",

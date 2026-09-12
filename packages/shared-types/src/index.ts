@@ -1,4 +1,4 @@
-export type Tool = "circle" | "rect" | "pencil" | "diamond" | "text" | "eraser" | "select";
+export type Tool = "circle" | "rect" | "pencil" | "freehand" | "diamond" | "text" | "eraser" | "select";
 
 export type EditPermission = "anyone" | "admin";
 
@@ -12,6 +12,7 @@ export type Shape =
   | { type: "rect"; x: number; y: number; width: number; height: number; color?: string }
   | { type: "circle"; centerX: number; centerY: number; radius: number; color?: string }
   | { type: "pencil"; startX: number; startY: number; endX: number; endY: number; color?: string }
+  | { type: "freehand"; points: Array<{ x: number; y: number }>; color?: string }
   | { type: "diamond"; centerX: number; centerY: number; width: number; height: number; color?: string }
   | { type: "text"; x: number; y: number; text: string; fontSize: number; color?: string };
 
@@ -61,6 +62,8 @@ export function isValidShape(v: unknown): v is Shape {
       return isNumber(v["centerX"]) && isNumber(v["centerY"]) && isNumber(v["radius"]);
     case "pencil":
       return isNumber(v["startX"]) && isNumber(v["startY"]) && isNumber(v["endX"]) && isNumber(v["endY"]);
+    case "freehand":
+      return Array.isArray(v["points"]) && v["points"].length > 0 && (v["points"] as unknown[]).every((p) => isObject(p) && isNumber(p["x"]) && isNumber(p["y"]));
     case "diamond":
       return isNumber(v["centerX"]) && isNumber(v["centerY"]) && isNumber(v["width"]) && isNumber(v["height"]);
     case "text":

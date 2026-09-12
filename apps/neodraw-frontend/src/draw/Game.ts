@@ -47,6 +47,7 @@ export class Game {
   private eraserRemoved: PersistedShape[] = [];
   private eraserPrevX = 0;
   private eraserPrevY = 0;
+  private freehandPoints: Point[] = [];
   private destroyed = false;
   onHistoryChange: (() => void) | null = null;
 
@@ -356,6 +357,11 @@ export class Game {
         this.ctx.lineTo(shape.endX, shape.endY);
         this.ctx.stroke();
         break;
+      case "freehand":
+        this.ctx.lineCap = "round";
+        buildFreehandPath(this.ctx, shape.points);
+        this.ctx.stroke();
+        break;
       case "text":
         this.ctx.fillStyle = color;
         this.ctx.font = `${shape.fontSize}px system-ui`;
@@ -414,6 +420,10 @@ export class Game {
         this.ctx.lineTo(this.currentX, this.currentY);
         this.ctx.stroke();
         break;
+      case "freehand":
+        buildFreehandPath(this.ctx, this.freehandPoints);
+        this.ctx.stroke();
+        break;
       case "eraser":
         this.ctx.fillStyle = "rgba(239, 68, 68, 0.12)";
         this.ctx.fillRect(this.startX, this.startY, this.currentX - this.startX, this.currentY - this.startY);
@@ -437,6 +447,20 @@ export class Game {
         return { x: shape.centerX - shape.width / 2, y: shape.centerY - shape.height / 2, w: shape.width, h: shape.height };
       case "pencil":
         return { x: Math.min(shape.startX, shape.endX), y: Math.min(shape.startY, shape.endY), w: Math.abs(shape.endX - shape.startX), h: Math.abs(shape.endY - shape.startY) };
+      case "freehand": {
+        if (shape.points.length === 0) return null;
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const p of shape.points) {
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
       case "text":
         return { x: shape.x, y: shape.y - shape.fontSize, w: shape.text.length * shape.fontSize * 0.6, h: shape.fontSize };
       default:
@@ -567,6 +591,10 @@ export class Game {
       this.eraserPrevY = y;
     }
 
+    if (this.tool === "freehand") {
+      this.freehandPoints = [{ x, y }];
+    }
+
     this.isDrawing = true;
     this.draw();
   }
@@ -604,6 +632,7 @@ export class Game {
       this.notifyHistoryChange();
     }
     this.eraserRemoved = [];
+    this.freehandPoints = [];
   }
 
   private mouseMoveHandler(e: MouseEvent): void {
@@ -651,6 +680,9 @@ export class Game {
             updated.endX += dx;
             updated.endY += dy;
             break;
+          case "freehand":
+            updated.points = updated.points.map((p) => ({ x: p.x + dx, y: p.y + dy }));
+            break;
         }
 
         this.upsertShape(updated);
@@ -661,6 +693,12 @@ export class Game {
     }
 
     if (this.isDrawing) {
+      if (this.tool === "freehand") {
+        const last = this.freehandPoints[this.freehandPoints.length - 1];
+        if (!last || Math.hypot(x - last.x, y - last.y) > (4 / this.zoom)) {
+          this.freehandPoints.push({ x, y });
+        }
+      }
       this.draw();
     }
   }
@@ -736,6 +774,14 @@ export class Game {
       case "pencil":
         shape = { id: newId(), userId: "", type: "pencil", startX: this.startX, startY: this.startY, endX: this.currentX, endY: this.currentY, color: this.color };
         break;
+      case "freehand": {
+        const pts = this.freehandPoints;
+        const first = pts[0];
+        const points: Point[] = pts.length >= 2 || !first ? pts : [first, { x: first.x, y: first.y }];
+        shape = { id: newId(), userId: "", type: "freehand", points, color: this.color };
+        this.freehandPoints = [];
+        break;
+      }
     }
 
     if (shape) {
@@ -850,6 +896,48 @@ interface AABB {
 interface Point {
   x: number;
   y: number;
+}
+
+function buildFreehandPath(ctx: CanvasRenderingContext2D, points: Point[]): void {
+  if (points.length === 0) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0]!.x, points[0]!.y);
+  if (points.length < 3) {
+    for (let i = 1; i < points.length; i++) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    return;
+  }
+  for (let i = 1; i < points.length - 1; i++) {
+    const current = points[i];
+    const next = points[i + 1];
+    if (!current || !next) continue;
+    ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+  }
+  const last = points[points.length - 1];
+  if (last) ctx.lineTo(last.x, last.y);
+}
+
+function polylineIntersectsRect(
+  points: Point[],
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): boolean {
+  if (points.length === 0) return false;
+  if (points.length === 1) {
+    const p = points[0];
+    if (!p) return false;
+    return p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY;
+  }
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (a && b && segmentIntersectsRect(a.x, a.y, b.x, b.y, minX, minY, maxX, maxY)) return true;
+  }
+  return false;
 }
 
 function aabbOverlap(a: AABB, b: AABB): boolean {
@@ -974,6 +1062,8 @@ function shapeIntersectsRect(shape: PersistedShape, minX: number, minY: number, 
       return polygonsOverlap(rectPoints(minX, minY, maxX, maxY), diamondPoints(shape));
     case "pencil":
       return segmentIntersectsRect(shape.startX, shape.startY, shape.endX, shape.endY, minX, minY, maxX, maxY);
+    case "freehand":
+      return polylineIntersectsRect(shape.points, minX, minY, maxX, maxY);
   }
 }
 

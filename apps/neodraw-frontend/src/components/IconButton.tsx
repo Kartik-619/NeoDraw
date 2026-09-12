@@ -13,6 +13,7 @@ export function IconButton({ label, active, disabled, onClick }: IconButtonProps
     circle: "○",
     diamond: "◇",
     pencil: "✎",
+    freehand: "∿",
     text: "T",
     select: "↖",
     eraser: "⌫",

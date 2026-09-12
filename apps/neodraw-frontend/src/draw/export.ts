@@ -35,6 +35,10 @@ export function shapesToSvg(shapes: PersistedShape[]): string {
       }
       case "pencil":
         return `<line x1="${round(shape.startX)}" y1="${round(shape.startY)}" x2="${round(shape.endX)}" y2="${round(shape.endY)}" stroke="${color}" stroke-width="2"/>`;
+      case "freehand": {
+        const d = shape.points.map((p, i) => `${i === 0 ? "M" : "L"}${round(p.x)},${round(p.y)}`).join(" ");
+        return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+      }
       case "text":
         return `<text x="${round(shape.x)}" y="${round(shape.y)}" font-size="${shape.fontSize}" fill="${color}" font-family="system-ui, sans-serif">${escapeXml(shape.text)}</text>`;
     }
@@ -81,6 +85,20 @@ function shapeBounds(shape: PersistedShape): { x: number; y: number; w: number; 
       return { x: shape.centerX - shape.width / 2, y: shape.centerY - shape.height / 2, w: shape.width, h: shape.height };
     case "pencil":
       return { x: Math.min(shape.startX, shape.endX), y: Math.min(shape.startY, shape.endY), w: Math.abs(shape.endX - shape.startX), h: Math.abs(shape.endY - shape.startY) };
+    case "freehand": {
+      if (shape.points.length === 0) return null;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of shape.points) {
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
     case "text":
       return { x: shape.x, y: shape.y - shape.fontSize, w: shape.text.length * shape.fontSize * 0.6, h: shape.fontSize };
     default:

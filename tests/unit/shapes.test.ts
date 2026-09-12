@@ -14,6 +14,18 @@ describe("isValidShape", () => {
     expect(isValidShape({ type: "pencil", startX: 0, startY: 0, endX: 100, endY: 100 })).toBe(true);
   });
 
+  it("accepts valid freehand", () => {
+    expect(isValidShape({ type: "freehand", points: [{ x: 0, y: 0 }, { x: 10, y: 5 }, { x: 20, y: 2 }] })).toBe(true);
+  });
+
+  it("rejects freehand without points", () => {
+    expect(isValidShape({ type: "freehand", points: [] })).toBe(false);
+  });
+
+  it("rejects freehand with malformed points", () => {
+    expect(isValidShape({ type: "freehand", points: [{ x: 0, y: 0 }, { x: "a", y: 1 }] })).toBe(false);
+  });
+
   it("accepts valid diamond", () => {
     expect(isValidShape({ type: "diamond", centerX: 50, centerY: 50, width: 80, height: 60 })).toBe(true);
   });
