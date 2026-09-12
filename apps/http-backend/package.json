@@ -4,7 +4,7 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": {
-    "build": "tsc --project tsconfig.json",
+    "build": "pnpm --filter @repo/http-backend^... build && tsc --project tsconfig.json",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "lint": "eslint .",
