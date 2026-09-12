@@ -24,12 +24,12 @@ export function LandingActions() {
   }, [authed]);
 
   return (
-    <div className="flex flex-col items-center gap-5">
-      <button onClick={startDrawing} className="black-btn">
-        {authed ? "Your Boards" : "Start Drawing"}
+    <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-center sm:gap-6">
+      <button type="button" onClick={startDrawing} className="vw-btn vw-btn-primary">
+        <span>{authed ? "Your Boards" : "Start Drawing"}</span>
       </button>
-      <button onClick={secondary} className="text-link">
-        {authed ? "Join a Room" : "Sign In"}
+      <button type="button" onClick={secondary} className="vw-btn vw-btn-magenta">
+        <span>{authed ? "Join a Room" : "Sign In"}</span>
       </button>
     </div>
   );

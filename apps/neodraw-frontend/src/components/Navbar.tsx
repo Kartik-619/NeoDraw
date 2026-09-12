@@ -103,10 +103,11 @@ export function Navbar() {
       <header className="themed-nav fixed top-0 left-0 right-0 z-50">
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="marionette-mark group" aria-label="NeoDraw home">
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-              <circle cx="11" cy="11" r="9.6" stroke="#FFFFFF" strokeWidth="0.9" />
-              <circle cx="11" cy="11" r="8.2" fill="#FFFFFF" />
-              <circle cx="11" cy="11" r="5.4" fill="#000000" />
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true" style={{ filter: "drop-shadow(0 0 6px rgba(0,255,255,0.8))" }}>
+              <circle cx="11" cy="11" r="9.6" stroke="#00FFFF" strokeWidth="1.1" />
+              <circle cx="11" cy="11" r="7.4" stroke="#FF00FF" strokeWidth="1" fill="none" />
+              <circle cx="11" cy="11" r="4.6" fill="#FF00FF" />
+              <circle cx="11" cy="11" r="2" fill="#090014" />
             </svg>
             <span className="text-base sm:text-lg font-semibold tracking-[0.18em]">
               NeoDraw
@@ -127,14 +128,14 @@ export function Navbar() {
 
           <div className="flex items-center gap-3">
             {loading ? (
-              <span className="h-8 w-24 animate-pulse bg-white/10" />
+              <span className="h-8 w-24 animate-pulse bg-cyan/10" />
             ) : user ? (
               <>
                 <span
                   title={`${user.name} — ${user.email}`}
-                  className="hidden max-w-[180px] items-center gap-2 overflow-hidden rounded-full border border-white/20 px-4 py-1.5 text-xs font-medium tracking-wide text-white/80 sm:flex"
+                  className="hidden max-w-[180px] items-center gap-2 overflow-hidden rounded-full border border-cyan/30 px-4 py-1.5 text-xs font-medium tracking-wide text-chrome/80 sm:flex"
                 >
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white text-center text-xs font-bold text-black">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-magenta text-center text-xs font-bold text-[#090014] shadow-glow-magenta">
                     {user.name.charAt(0).toUpperCase()}
                   </span>
                   <span className="truncate">{user.name}</span>
