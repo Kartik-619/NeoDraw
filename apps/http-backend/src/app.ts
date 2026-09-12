@@ -17,8 +17,16 @@ export function createApp(container: Container): express.Express {
     return typeof value === "string" ? value : null;
   }
 
+  const allowedOrigin = (process.env.FRONTEND_ORIGIN || "http://localhost:3000").replace(/\/+$/, "");
+
   app.use(cors({
-    origin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
+    origin(origin, callback) {
+      if (!origin || origin === allowedOrigin) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
