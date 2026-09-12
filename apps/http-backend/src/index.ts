@@ -22,6 +22,8 @@ async function main() {
   app.use(cors({
     origin: process.env.FRONTEND_ORIGIN || "http://localhost:3000",
     credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   }));
   app.use(express.json());
   app.use(cookieParser());
@@ -112,9 +114,9 @@ async function main() {
     return await container.rooms.create({ slug });
   }
 
-function canEdit(room: RoomRecord, userId: string): boolean {
-  return canEditRoom(room.editPermission, room.adminId ?? null, userId);
-}
+  function canEdit(room: RoomRecord, userId: string): boolean {
+    return canEditRoom(room.editPermission, room.adminId ?? null, userId);
+  }
 
   app.get("/room/:slug", async (req: Request, res: Response) => {
     const slug = getParam(req.params.slug);
