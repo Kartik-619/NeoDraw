@@ -30,7 +30,6 @@ function spawnService(name, args, overrides = {}) {
 }
 
 children.push(spawnService("http-backend", ["--filter", "@repo/http-backend", "start"]));
-children.push(spawnService("ws-backend", ["--filter", "@repo/ws-backend", "start"]));
 children.push(spawnService("frontend", ["--filter", "@repo/neodraw-frontend", "start"], { PORT }));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {

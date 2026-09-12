@@ -1,4 +1,4 @@
-import { createWsServer, type WsServerDeps, type WsServerHandle } from "@repo/ws-backend/src/index";
+import { createWsServer, type WsServerDeps, type WsServerHandle } from "@repo/http-backend/src/infrastructure/websocket/index";
 import type { AddressInfo } from "net";
 
 export interface TestWsServer {

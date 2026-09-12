@@ -1,4 +1,4 @@
-import type { Persistence, RoomStore, ShapeStore, ChatStore } from "@repo/ws-backend/src/index";
+import type { Persistence, RoomStore, ShapeStore, ChatStore } from "@repo/http-backend/src/infrastructure/websocket/index";
 import type { Room, RoomShape, Chat } from "@repo/db";
 import type { EditPermission, PersistedShape } from "@repo/shared-types";
 

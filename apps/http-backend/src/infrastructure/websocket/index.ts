@@ -1,4 +1,3 @@
-import "@repo/backend-common/env";
 import { WebSocketServer, WebSocket } from "ws";
 import jwt from "jsonwebtoken";
 import { parse } from "cookie";
@@ -44,6 +43,7 @@ export interface Persistence {
 }
 
 export interface WsServerDeps {
+  server?: Server;
   persistence: Persistence;
   authenticate?: (req: IncomingMessage) => string | null;
 }
@@ -84,7 +84,7 @@ export async function createWsServer(deps: WsServerDeps): Promise<WsServerHandle
   const { persistence } = deps;
   const authenticate = deps.authenticate ?? authenticateToken;
 
-  const server: Server = createServer();
+  const server: Server = deps.server ?? createServer();
   const wss = new WebSocketServer({ server });
   const users: Map<WebSocket, ConnectedUser> = new Map();
 

@@ -19,7 +19,6 @@
     "@repo/common": "workspace:*",
     "@repo/backend-common": "workspace:*",
     "@repo/http-backend": "workspace:*",
-    "@repo/ws-backend": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

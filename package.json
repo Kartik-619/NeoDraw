@@ -4,12 +4,10 @@
   "scripts": {
     "dev": "turbo dev",
     "dev:http": "turbo dev --filter=@repo/http-backend",
-    "dev:ws": "turbo dev --filter=@repo/ws-backend",
     "dev:frontend": "turbo dev --filter=@repo/neodraw-frontend",
     "build": "turbo build",
     "start": "node ./scripts/start.mjs",
     "build:http": "turbo build --filter=@repo/http-backend",
-    "build:ws": "turbo build --filter=@repo/ws-backend",
     "build:frontend": "turbo build --filter=@repo/neodraw-frontend",
     "test": "turbo test",
     "test:unit": "pnpm --filter ny-tests test:unit",
