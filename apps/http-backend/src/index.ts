@@ -291,7 +291,7 @@ function canEdit(room: RoomRecord, userId: string): boolean {
     res.status(201).json({ success: true });
   });
 
-  const PORT = process.env.HTTP_PORT || 3008;
+  const PORT = process.env.PORT || process.env.HTTP_PORT || 3008;
   app.listen(PORT, () => {
     console.log(`HTTP backend running on port ${PORT}`);
   });

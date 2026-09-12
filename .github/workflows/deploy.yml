@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
@@ -6,16 +6,13 @@ on:
   pull_request:
     branches: [ main, master ]
 
-# Add permission for GitHub Pages
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,22 +40,5 @@ jobs:
       - name: Build all apps
         run: pnpm run build
 
-      - name: Upload frontend artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: apps/neodraw-frontend/out
-  
-  # Only deploy if we're on main/master branch
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-and-test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Run tests
+        run: pnpm run test:unit && pnpm run test:integration && pnpm --filter ny-tests test:ws

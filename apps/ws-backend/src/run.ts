@@ -7,7 +7,7 @@ async function main(): Promise<void> {
 
   const { server } = await createWsServer({ persistence: dbPersistence() });
 
-  const PORT = process.env.WS_PORT || 8080;
+  const PORT = process.env.PORT || process.env.WS_PORT || 8080;
   server.listen(PORT, () => {
     console.log(`WebSocket backend running on port ${PORT}`);
   });
