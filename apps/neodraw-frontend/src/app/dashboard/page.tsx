@@ -4,11 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { HTTP_BACKEND } from "@/lib/config";
+import { getCurrentUserId } from "@/lib/jwt";
 import { Spinner } from "@/components/Skeleton";
 
 interface DashboardRoom {
   id: number;
   slug: string;
+  adminId: string | null;
   editPermission: "anyone" | "admin";
 }
 
@@ -17,6 +19,11 @@ export default function DashboardPage() {
   const [rooms, setRooms] = useState<DashboardRoom[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentUserId(getCurrentUserId());
+  }, []);
 
   const loadRooms = useCallback(async (): Promise<void> => {
     const token = localStorage.getItem("token");
@@ -148,27 +155,34 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {rooms.map((room, i) => (
-              <Link
-                key={room.id}
-                href={`/canvas/${room.slug}`}
-                className="group rounded-2xl border border-white/10 bg-surface/60 p-6 transition-all hover:-translate-y-1 hover:border-white/40 hover:shadow-[0_10px_40px_rgba(255,255,255,0.08)]"
-                style={{ animation: `neodrawFadeUp 0.5s ${i * 0.06}s ease both` }}
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft text-xl text-brand">
-                  {room.editPermission === "admin" ? "🔒" : "✎"}
-                </div>
-                <h3 className="mb-1 truncate text-lg font-bold text-white">{room.slug}</h3>
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-muted">
-                    {room.editPermission === "admin" ? "Admin only edits" : "Anyone can edit"}
-                  </span>
-                  <span className="text-sm font-semibold text-brand opacity-0 transition-opacity group-hover:opacity-100">
-                    Open →
-                  </span>
-                </div>
-              </Link>
-            ))}
+            {rooms.map((room, i) => {
+              const isOwner = room.adminId === currentUserId;
+              return (
+                <Link
+                  key={room.id}
+                  href={`/canvas/${room.slug}`}
+                  className="group rounded-2xl border border-white/10 bg-surface/60 p-6 transition-all hover:-translate-y-1 hover:border-white/40 hover:shadow-[0_10px_40px_rgba(255,255,255,0.08)]"
+                  style={{ animation: `neodrawFadeUp 0.5s ${i * 0.06}s ease both` }}
+                >
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-brand-soft text-xl text-brand">
+                    {isOwner ? (room.editPermission === "admin" ? "🔒" : "✎") : "👥"}
+                  </div>
+                  <h3 className="mb-1 truncate text-lg font-bold text-white">{room.slug}</h3>
+                  <div className="flex items-center justify-between">
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-xs text-muted">
+                      {isOwner
+                        ? room.editPermission === "admin"
+                          ? "Admin only edits"
+                          : "Anyone can edit"
+                        : "Shared with you"}
+                    </span>
+                    <span className="text-sm font-semibold text-brand opacity-0 transition-opacity group-hover:opacity-100">
+                      Open →
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>

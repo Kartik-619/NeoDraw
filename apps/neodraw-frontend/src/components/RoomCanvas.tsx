@@ -27,6 +27,7 @@ export function RoomCanvas({ roomId }: RoomCanvasProps) {
   const reconnectCount = useRef(0);
   const mountedRef = useRef(true);
   const wsRef = useRef<WebSocket | null>(null);
+  const deniedRef = useRef(false);
 
   useEffect(() => {
     setCurrentUserId(getCurrentUserId());
@@ -54,6 +55,14 @@ export function RoomCanvas({ roomId }: RoomCanvasProps) {
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data) as ServerShapeMessage;
 
+      if (msg.type === "join_denied") {
+        deniedRef.current = true;
+        setError("You don't have access to this canvas");
+        setLoading(false);
+        ws.close();
+        return;
+      }
+
       if (msg.type === "joined_room") {
         setMembers(msg.members);
         setSocket(ws);
@@ -66,7 +75,7 @@ export function RoomCanvas({ roomId }: RoomCanvasProps) {
     };
 
     ws.onclose = () => {
-      if (!mountedRef.current || !keepAlive) return;
+      if (!mountedRef.current || !keepAlive || deniedRef.current) return;
       if (reconnectCount.current < 10) {
         reconnectCount.current++;
         setReconnectAttempt(reconnectCount.current);
@@ -87,6 +96,7 @@ export function RoomCanvas({ roomId }: RoomCanvasProps) {
 
   useEffect(() => {
     mountedRef.current = true;
+    deniedRef.current = false;
     openSocket(true);
 
     return () => {
@@ -105,6 +115,7 @@ export function RoomCanvas({ roomId }: RoomCanvasProps) {
     if (ws && ws.readyState !== WebSocket.CLOSED) {
       ws.close();
     }
+    deniedRef.current = false;
     setError(null);
     setLoading(true);
     reconnectCount.current = 0;

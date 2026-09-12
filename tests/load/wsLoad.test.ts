@@ -9,6 +9,16 @@ let server: TestWsServer;
 let mem: MemoryPersistenceRef;
 let fixtures: WsFixture[];
 
+// Grant the user access to a room: first claimant becomes owner, everyone joins as a member.
+function ensureAccess(roomId: string, userId: string): void {
+  const room = mem.rooms.seed({ slug: roomId });
+  if (!room.adminId) {
+    room.adminId = userId;
+    void mem.rooms.save(room);
+  }
+  mem.members.add(room.id, userId);
+}
+
 afterEach(async () => {
   for (const f of fixtures) {
     try { f.close(); } catch { /* ignore */ }
@@ -34,7 +44,8 @@ describe("WebSocket load — concurrent connections", () => {
     fixtures.push(...allFixtures);
 
     // All join the same room
-    const joinPromises = allFixtures.map((f, i) => {
+    const joinPromises = allFixtures.map((f) => {
+      ensureAccess("load-room", f.userId);
       f.send({ type: "join_room", roomId: "load-room" });
       return f.waitFor(
         "joined_room",
@@ -75,6 +86,7 @@ describe("WebSocket load — concurrent connections", () => {
 
     // All join
     for (const f of allFixtures) {
+      ensureAccess("disc-room", f.userId);
       f.send({ type: "join_room", roomId: "disc-room" });
     }
     // Consume all joined_room messages
@@ -126,6 +138,8 @@ describe("WebSocket load — concurrent connections", () => {
     const b = await openSocket(server.url, "burst-2");
     fixtures.push(a, b);
 
+    ensureAccess("burst-room", "burst-1");
+    ensureAccess("burst-room", "burst-2");
     a.send({ type: "join_room", roomId: "burst-room" });
     await a.waitFor("joined_room", (m) => m.type === "joined_room" && m.roomId === "burst-room");
     b.send({ type: "join_room", roomId: "burst-room" });
@@ -184,6 +198,7 @@ describe("WebSocket load — concurrent connections", () => {
       for (let u = 0; u < USERS_PER_ROOM; u++) {
         const f = await openSocket(server.url, `multi-${r}-${u}`);
         fixtures.push(f);
+        ensureAccess(`multi-room-${r}`, f.userId);
         f.send({ type: "join_room", roomId: `multi-room-${r}` });
       }
     }

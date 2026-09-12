@@ -1,7 +1,7 @@
 import { In } from "typeorm";
 import { initializeDatabase, db, toPersistedShape } from "@repo/db";
 import type { PersistedShape, Shape, EditPermission } from "@repo/shared-types";
-import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository, RoomRecord } from "../../application/repositories.js";
+import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository, MemberRepository, RoomRecord } from "../../application/repositories.js";
 import type { Container } from "../../application/container.js";
 
 class TypeOrmUserRepository implements UserRepository {
@@ -29,6 +29,15 @@ class TypeOrmRoomRepository implements RoomRepository {
   }
   async findByAdminId(adminId: string): Promise<RoomRecord[]> {
     const rooms = await db.rooms().find({ where: { adminId }, order: { updatedAt: "DESC" } });
+    return rooms.map((room) => this.toRecord(room));
+  }
+  async findAccessibleByUser(userId: string): Promise<RoomRecord[]> {
+    const memberRows = await db.members().find({ where: { userId } });
+    const memberRoomIds = memberRows.map((row) => row.roomId);
+    const where = memberRoomIds.length > 0
+      ? [{ adminId: userId }, { id: In(memberRoomIds) }]
+      : [{ adminId: userId }];
+    const rooms = await db.rooms().find({ where, order: { updatedAt: "DESC" } });
     return rooms.map((room) => this.toRecord(room));
   }
   async create(data: { slug: string; adminId?: string }) {
@@ -92,6 +101,33 @@ class TypeOrmChatRepository implements ChatRepository {
   }
 }
 
+class TypeOrmMemberRepository implements MemberRepository {
+  async add(roomId: number, userId: string): Promise<void> {
+    const existing = await db.members().findOne({ where: { roomId, userId } });
+    if (existing) return;
+    const member = db.members().create({ roomId, userId });
+    await db.members().save(member);
+  }
+  async remove(roomId: number, userId: string): Promise<void> {
+    await db.members().delete({ roomId, userId });
+  }
+  async isMember(roomId: number, userId: string): Promise<boolean> {
+    const found = await db.members().findOne({ where: { roomId, userId } });
+    return found !== null;
+  }
+  async findUserIdsForRoom(roomId: number): Promise<string[]> {
+    const rows = await db.members().find({ where: { roomId } });
+    return rows.map((row) => row.userId);
+  }
+  async findEmailsForRoom(roomId: number): Promise<{ userId: string; email: string }[]> {
+    const rows = await db.members().find({ where: { roomId } });
+    if (rows.length === 0) return [];
+    const users = await db.users().find({ where: { id: In(rows.map((row) => row.userId)) } });
+    const emailById = new Map(users.map((u) => [u.id, u.email]));
+    return rows.map((row) => ({ userId: row.userId, email: emailById.get(row.userId) ?? row.userId }));
+  }
+}
+
 export async function buildTypeOrmContainer(): Promise<Container> {
   await initializeDatabase();
   return {
@@ -99,5 +135,6 @@ export async function buildTypeOrmContainer(): Promise<Container> {
     rooms: new TypeOrmRoomRepository(),
     shapes: new TypeOrmShapeRepository(),
     chats: new TypeOrmChatRepository(),
+    members: new TypeOrmMemberRepository(),
   };
 }

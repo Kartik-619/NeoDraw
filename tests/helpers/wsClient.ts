@@ -11,6 +11,7 @@ interface WaitEntry {
 
 export interface WsFixture {
   ws: WebSocket;
+  userId: string;
   messages: ServerShapeMessage[];
   waitFor(type: ServerShapeMessage["type"], predicate?: (m: ServerShapeMessage) => boolean): Promise<ServerShapeMessage>;
   send(data: object): void;
@@ -60,6 +61,7 @@ export function openSocket(url: string, token: string, timeoutMs = DEFAULT_TIMEO
     ws.on("open", () => {
       resolve({
         ws,
+        userId: token,
         messages,
         waitFor(type, predicate) {
           const existing = messages.find(

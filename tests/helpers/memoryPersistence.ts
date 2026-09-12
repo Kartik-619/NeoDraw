@@ -1,4 +1,4 @@
-import type { Persistence, RoomStore, ShapeStore, ChatStore } from "@repo/http-backend/src/infrastructure/websocket/index";
+import type { Persistence, RoomStore, ShapeStore, ChatStore, RoomMembersStore } from "@repo/http-backend/src/infrastructure/websocket/index";
 import type { Room, RoomShape, Chat } from "@repo/db";
 import type { EditPermission, PersistedShape } from "@repo/shared-types";
 
@@ -174,16 +174,40 @@ export class MemoryChatStore implements ChatStore {
   }
 }
 
+export class MemoryMembersStore implements RoomMembersStore {
+  private byRoom = new Map<number, Set<string>>();
+
+  async isMember(roomId: number, userId: string): Promise<boolean> {
+    return this.byRoom.get(roomId)?.has(userId) ?? false;
+  }
+
+  add(roomId: number, userId: string): void {
+    const set = this.byRoom.get(roomId) ?? new Set<string>();
+    set.add(userId);
+    this.byRoom.set(roomId, set);
+  }
+
+  remove(roomId: number, userId: string): void {
+    this.byRoom.get(roomId)?.delete(userId);
+  }
+
+  seed({ roomId, userId }: { roomId: number; userId: string }): void {
+    this.add(roomId, userId);
+  }
+}
+
 export interface MemoryPersistenceRef {
   persistence: Persistence;
   rooms: MemoryRoomStore;
   shapes: MemoryShapeStore;
   chats: MemoryChatStore;
+  members: MemoryMembersStore;
 }
 
 export function createMemoryPersistence(): MemoryPersistenceRef {
   const rooms = new MemoryRoomStore();
   const shapes = new MemoryShapeStore();
   const chats = new MemoryChatStore();
-  return { persistence: { rooms, shapes, chats }, rooms, shapes, chats };
+  const members = new MemoryMembersStore();
+  return { persistence: { rooms, shapes, chats, members }, rooms, shapes, chats, members };
 }

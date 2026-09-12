@@ -11,6 +11,13 @@ export default defineConfig({
   },
   test: {
     globals: true,
+    include: [
+      "unit/**/*.test.ts",
+      "integration/**/*.test.ts",
+      "ws/**/*.test.ts",
+      "load/**/*.test.ts",
+      "security/**/*.test.ts",
+    ],
     env: {
       DATABASE_URL: "postgres://test:test@localhost:5432/neodraw_test",
       JWT_SECRET: "neodraw-test-secret",

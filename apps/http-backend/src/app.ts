@@ -107,30 +107,37 @@ export function createApp(container: Container): express.Express {
     res.status(201).json({ roomId: room.id, slug: room.slug });
   });
 
-  // List rooms where the current user is admin
+  // List rooms where the current user is admin or a member
   app.get("/rooms", authMiddleware, async (req: AuthRequest, res: Response) => {
-    const rooms = await container.rooms.findByAdminId(req.userId!);
+    const rooms = await container.rooms.findAccessibleByUser(req.userId!);
     res.json({ rooms });
   });
 
-  // Resolve room by slug (creates if missing)
-  async function resolveRoomBySlug(slug: string): Promise<RoomRecord> {
-    const existing = await container.rooms.findBySlug(slug);
-    if (existing) return existing;
-    return await container.rooms.create({ slug });
+  // Resolve room by slug (must exist; requires membership or ownership)
+  async function resolveRoom(slug: string): Promise<RoomRecord | null> {
+    return container.rooms.findBySlug(slug);
   }
 
   function canEdit(room: RoomRecord, userId: string): boolean {
     return canEditRoom(room.editPermission, room.adminId ?? null, userId);
   }
 
-  app.get("/room/:slug", async (req: Request, res: Response) => {
+  async function canAccess(room: RoomRecord, userId: string): Promise<boolean> {
+    if (room.adminId === userId) return true;
+    return container.members.isMember(room.id, userId);
+  }
+
+  app.get("/room/:slug", authMiddleware, async (req: AuthRequest, res: Response) => {
     const slug = getParam(req.params.slug);
     if (!slug) {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room || !(await canAccess(room, req.userId!))) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     res.json({ roomId: room.id, slug: room.slug, adminId: room.adminId, editPermission: room.editPermission });
   });
 
@@ -141,7 +148,11 @@ export function createApp(container: Container): express.Express {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     if (room.adminId !== req.userId) {
       res.status(403).json({ message: "Only the room owner can change sharing permissions" });
       return;
@@ -157,13 +168,17 @@ export function createApp(container: Container): express.Express {
 
   // --- Shape CRUD ---
 
-  app.get("/rooms/:slug/shapes", async (req: Request, res: Response) => {
+  app.get("/rooms/:slug/shapes", authMiddleware, async (req: AuthRequest, res: Response) => {
     const slug = getParam(req.params.slug);
     if (!slug) {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room || !(await canAccess(room, req.userId!))) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     const shapes = await container.shapes.findByRoomId(room.id);
     res.json({ shapes });
   });
@@ -174,7 +189,11 @@ export function createApp(container: Container): express.Express {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     if (!canEdit(room, req.userId!)) {
       res.status(403).json({ message: "This room is view-only" });
       return;
@@ -195,7 +214,11 @@ export function createApp(container: Container): express.Express {
       res.status(400).json({ message: "Invalid slug or shapeId" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     if (!canEdit(room, req.userId!)) {
       res.status(403).json({ message: "This room is view-only" });
       return;
@@ -221,7 +244,11 @@ export function createApp(container: Container): express.Express {
       res.status(400).json({ message: "Invalid slug or shapeId" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     if (!canEdit(room, req.userId!)) {
       res.status(403).json({ message: "This room is view-only" });
       return;
@@ -241,7 +268,11 @@ export function createApp(container: Container): express.Express {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     if (!canEdit(room, req.userId!)) {
       res.status(403).json({ message: "This room is view-only" });
       return;
@@ -257,18 +288,22 @@ export function createApp(container: Container): express.Express {
 
   // --- Chat ---
 
-  app.get("/rooms/:slug/chats", async (req: Request, res: Response) => {
+  app.get("/rooms/:slug/chats", authMiddleware, async (req: AuthRequest, res: Response) => {
     const slug = getParam(req.params.slug);
     if (!slug) {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room || !(await canAccess(room, req.userId!))) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     const chats = await container.chats.findByRoomId(room.id);
     res.json({ chats });
   });
 
-  app.get("/chats/:roomId", async (req: Request, res: Response) => {
+  app.get("/chats/:roomId", authMiddleware, async (req: AuthRequest, res: Response) => {
     const roomIdRaw = getParam(req.params.roomId);
     if (!roomIdRaw) {
       res.status(400).json({ message: "Invalid room ID" });
@@ -277,6 +312,11 @@ export function createApp(container: Container): express.Express {
     const roomId = parseInt(roomIdRaw);
     if (isNaN(roomId)) {
       res.status(400).json({ message: "Invalid room ID" });
+      return;
+    }
+    const room = await container.rooms.findById(roomId);
+    if (!room || !(await canAccess(room, req.userId!))) {
+      res.status(404).json({ message: "Room not found" });
       return;
     }
     const chats = await container.chats.findByRoomId(roomId);
@@ -289,7 +329,11 @@ export function createApp(container: Container): express.Express {
       res.status(400).json({ message: "Invalid slug" });
       return;
     }
-    const room = await resolveRoomBySlug(slug);
+    const room = await resolveRoom(slug);
+    if (!room || !(await canAccess(room, req.userId!))) {
+      res.status(404).json({ message: "Room not found" });
+      return;
+    }
     const { message } = req.body as { message: string };
     if (!message || typeof message !== "string") {
       res.status(400).json({ message: "Message is required" });
@@ -297,6 +341,86 @@ export function createApp(container: Container): express.Express {
     }
     await container.chats.create({ message, userId: req.userId!, roomId: room.id });
     res.status(201).json({ success: true });
+  });
+
+  // --- Room members (owner only) ---
+
+  function requireRoom(res: Response, room: RoomRecord | null, userId: string | undefined): room is RoomRecord {
+    if (!room) {
+      res.status(404).json({ message: "Room not found" });
+      return false;
+    }
+    if (room.adminId !== userId) {
+      res.status(403).json({ message: "Only the room owner can manage members" });
+      return false;
+    }
+    return true;
+  }
+
+  app.get("/rooms/:slug/members", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
+    }
+    const room = await resolveRoom(slug);
+    if (!requireRoom(res, room, req.userId)) return;
+    const members = await container.members.findEmailsForRoom(room.id);
+    res.json({ members });
+  });
+
+  app.post("/rooms/:slug/members", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    if (!slug) {
+      res.status(400).json({ message: "Invalid slug" });
+      return;
+    }
+    const room = await resolveRoom(slug);
+    if (!requireRoom(res, room, req.userId)) return;
+
+    const emailRaw = (req.body as { email?: unknown }).email;
+    if (typeof emailRaw !== "string" || !emailRaw.includes("@")) {
+      res.status(400).json({ message: "A valid email is required" });
+      return;
+    }
+    const email = emailRaw.trim().toLowerCase();
+    const user = await container.users.findByEmail(email);
+    if (!user) {
+      res.status(404).json({ message: "No account found for that email" });
+      return;
+    }
+    if (user.id === room.adminId) {
+      res.status(400).json({ message: "The owner is already a member" });
+      return;
+    }
+    if (await container.members.isMember(room.id, user.id)) {
+      res.status(409).json({ message: "That user is already a member" });
+      return;
+    }
+    await container.members.add(room.id, user.id);
+    res.status(201).json({ userId: user.id, email: user.email });
+  });
+
+  app.delete("/rooms/:slug/members/:userId", authMiddleware, async (req: AuthRequest, res: Response) => {
+    const slug = getParam(req.params.slug);
+    const memberId = getParam(req.params.userId);
+    if (!slug || !memberId) {
+      res.status(400).json({ message: "Invalid slug or userId" });
+      return;
+    }
+    const room = await resolveRoom(slug);
+    if (!requireRoom(res, room, req.userId)) return;
+
+    if (memberId === room.adminId) {
+      res.status(400).json({ message: "The owner cannot be removed" });
+      return;
+    }
+    if (!(await container.members.isMember(room.id, memberId))) {
+      res.status(404).json({ message: "Not a member of this room" });
+      return;
+    }
+    await container.members.remove(room.id, memberId);
+    res.json({ success: true });
   });
 
   return app;

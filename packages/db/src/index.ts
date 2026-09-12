@@ -3,6 +3,7 @@ import { User } from "./entities/User";
 import { Room } from "./entities/Room";
 import { Chat } from "./entities/Chat";
 import { RoomShape } from "./entities/RoomShape";
+import { RoomMember } from "./entities/RoomMember";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
@@ -16,7 +17,7 @@ export const AppDataSource = new DataSource({
   url: databaseUrl,
   synchronize: true,
   logging: false,
-  entities: [User, Room, Chat, RoomShape],
+  entities: [User, Room, Chat, RoomShape, RoomMember],
 });
 
 let initialized = false;
@@ -43,11 +44,16 @@ function shapes() {
   return AppDataSource.getRepository(RoomShape);
 }
 
-export const db = { users, rooms, chats, shapes };
+function members() {
+  return AppDataSource.getRepository(RoomMember);
+}
+
+export const db = { users, rooms, chats, shapes, members };
 
 export type { User } from "./entities/User";
 export type { Room } from "./entities/Room";
 export type { Chat } from "./entities/Chat";
 export type { RoomShape } from "./entities/RoomShape";
+export type { RoomMember } from "./entities/RoomMember";
 export { toRoomInfo } from "./entities/Room";
 export { toPersistedShape } from "./shape-mapper";

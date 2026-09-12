@@ -1,10 +1,11 @@
-import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository } from "./repositories.js";
+import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository, MemberRepository } from "./repositories.js";
 
 export interface Container {
   users: UserRepository;
   rooms: RoomRepository;
   shapes: ShapeRepository;
   chats: ChatRepository;
+  members: MemberRepository;
 }
 
 let container: Container | null = null;

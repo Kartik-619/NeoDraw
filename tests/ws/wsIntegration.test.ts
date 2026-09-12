@@ -42,10 +42,21 @@ async function connect(userId: string, timeoutMs?: number): Promise<WsFixture> {
   return f;
 }
 
+// Grant the user access to a room: first claimant becomes owner, everyone joins as a member.
+function ensureAccess(roomId: string, userId: string): void {
+  const room = ctx.mem.rooms.seed({ slug: roomId });
+  if (!room.adminId) {
+    room.adminId = userId;
+    void ctx.mem.rooms.save(room);
+  }
+  ctx.mem.members.add(room.id, userId);
+}
+
 async function join(
   fixture: WsFixture,
   roomId: string,
 ): Promise<{ members: string[]; shapes: PersistedShape[] }> {
+  ensureAccess(roomId, fixture.userId);
   fixture.send({ type: "join_room", roomId });
   const joined = await fixture.waitFor(
     "joined_room",
@@ -195,6 +206,34 @@ describe("WebSocket backend — presence", () => {
 });
 
 describe("WebSocket backend — room isolation and shapes", () => {
+  it("denies join to users who are not the owner or a member", async () => {
+    ctx.mem.rooms.seed({ slug: "private-room", adminId: "owner-u" });
+
+    const stranger = await connect("stranger-u");
+    stranger.send({ type: "join_room", roomId: "private-room" });
+    const denied = await stranger.waitFor("join_denied");
+    expect(denied.type).toBe("join_denied");
+    if (denied.type === "join_denied") expect(denied.roomId).toBe("private-room");
+
+    expect(stranger.messages.some((m) => m.type === "joined_room")).toBe(false);
+  });
+
+  it("denies join to a room that does not exist", async () => {
+    const stranger = await connect("u404");
+    stranger.send({ type: "join_room", roomId: "no-such-room" });
+    const denied = await stranger.waitFor("join_denied");
+    expect(denied.type).toBe("join_denied");
+  });
+
+  it("lets an invited member join a room they do not own", async () => {
+    const room = ctx.mem.rooms.seed({ slug: "shared-room", adminId: "owner-u" });
+    ctx.mem.members.add(room.id, "guest-u");
+
+    const guest = await connect("guest-u");
+    const { members } = await join(guest, "shared-room");
+    expect(members).toContain("guest-u");
+  });
+
   it("scopes shape events to members of the room", async () => {
     const a = await connect("u1");
     await join(a, "room-red");

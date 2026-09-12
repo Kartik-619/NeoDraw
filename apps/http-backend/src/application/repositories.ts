@@ -17,8 +17,22 @@ export interface RoomRepository {
   findById(id: number): Promise<RoomRecord | null>;
   findBySlug(slug: string): Promise<RoomRecord | null>;
   findByAdminId(adminId: string): Promise<RoomRecord[]>;
+  findAccessibleByUser(userId: string): Promise<RoomRecord[]>;
   create(data: { slug: string; adminId?: string }): Promise<RoomRecord>;
   updateEditPermission(slug: string, editPermission: EditPermission): Promise<RoomRecord | null>;
+}
+
+export interface RoomMemberRecord {
+  roomId: number;
+  userId: string;
+}
+
+export interface MemberRepository {
+  add(roomId: number, userId: string): Promise<void>;
+  remove(roomId: number, userId: string): Promise<void>;
+  isMember(roomId: number, userId: string): Promise<boolean>;
+  findUserIdsForRoom(roomId: number): Promise<string[]>;
+  findEmailsForRoom(roomId: number): Promise<{ userId: string; email: string }[]>;
 }
 
 export interface ShapeRepository {

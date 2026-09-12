@@ -4,18 +4,30 @@ import userEvent from "@testing-library/user-event";
 import { ShareDialog } from "@/components/ShareDialog";
 import { clipboardMocks } from "./setup";
 
-const { updateRoomPermissionMock } = vi.hoisted(() => ({
+const { updateRoomPermissionMock, listRoomMembersMock, addRoomMemberMock, removeRoomMemberMock } = vi.hoisted(() => ({
   updateRoomPermissionMock: vi.fn().mockResolvedValue(true),
+  listRoomMembersMock: vi.fn().mockResolvedValue([]),
+  addRoomMemberMock: vi.fn().mockResolvedValue({ ok: true }),
+  removeRoomMemberMock: vi.fn().mockResolvedValue(true),
 }));
 
 vi.mock("@/draw/http", () => ({
   updateRoomPermission: updateRoomPermissionMock,
+  listRoomMembers: listRoomMembersMock,
+  addRoomMember: addRoomMemberMock,
+  removeRoomMember: removeRoomMemberMock,
 }));
 
 describe("ShareDialog", () => {
   afterEach(() => {
     updateRoomPermissionMock.mockReset();
     updateRoomPermissionMock.mockResolvedValue(true);
+    listRoomMembersMock.mockReset();
+    listRoomMembersMock.mockResolvedValue([]);
+    addRoomMemberMock.mockReset();
+    addRoomMemberMock.mockResolvedValue({ ok: true });
+    removeRoomMemberMock.mockReset();
+    removeRoomMemberMock.mockResolvedValue(true);
     clipboardMocks.writeText.mockClear();
   });
 
@@ -87,9 +99,9 @@ describe("ShareDialog", () => {
 
   it("disables permission radios for non-admins", async () => {
     render(<ShareDialog {...baseProps} isAdmin={false} />);
-    expect(screen.getByLabelText("Anyone with the link can edit")).toBeDisabled();
+    expect(screen.getByLabelText("All members can edit")).toBeDisabled();
     expect(screen.getByLabelText("Only the owner can edit")).toBeDisabled();
-    expect(screen.getByText(/Only the room owner/)).toBeInTheDocument();
+    expect(screen.getByText(/shared with you/)).toBeInTheDocument();
   });
 
   it("closes when the Close button is pressed", async () => {

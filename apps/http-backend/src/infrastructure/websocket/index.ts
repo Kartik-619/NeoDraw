@@ -36,10 +36,15 @@ export interface ChatStore {
   save(chat: Chat): Promise<Chat>;
 }
 
+export interface RoomMembersStore {
+  isMember(roomId: number, userId: string): Promise<boolean>;
+}
+
 export interface Persistence {
   rooms: RoomStore;
   shapes: ShapeStore;
   chats: ChatStore;
+  members: RoomMembersStore;
 }
 
 export interface WsServerDeps {
@@ -112,17 +117,13 @@ export async function createWsServer(deps: WsServerDeps): Promise<WsServerHandle
     return Array.from(memberSet);
   }
 
-  async function resolveRoomBySlug(slug: string) {
-    let room = await persistence.rooms.findOne({ where: { slug } });
-    if (!room) {
-      room = await persistence.rooms.create({ slug });
-      room = await persistence.rooms.save(room);
-    }
-    return room;
-  }
-
   function canEdit(room: Room, userId: string): boolean {
     return canEditRoom(room.editPermission, room.adminId ?? null, userId);
+  }
+
+  async function canAccessRoom(room: Room, userId: string): Promise<boolean> {
+    if (room.adminId === userId) return true;
+    return persistence.members.isMember(room.id, userId);
   }
 
   async function handleMessage(ws: WebSocket, user: ConnectedUser, raw: string): Promise<void> {
@@ -136,7 +137,11 @@ export async function createWsServer(deps: WsServerDeps): Promise<WsServerHandle
     switch (msg.type) {
       case "join_room": {
         const { roomId } = msg;
-        const room = await resolveRoomBySlug(roomId);
+        const room = await persistence.rooms.findOne({ where: { slug: roomId } });
+        if (!room || !(await canAccessRoom(room, user.userId))) {
+          send(ws, { type: "join_denied", roomId });
+          return;
+        }
 
         if (!user.rooms.includes(roomId)) {
           user.rooms.push(roomId);
@@ -306,6 +311,9 @@ export function dbPersistence(): Persistence {
     chats: {
       create: (data) => db.chats().create(data),
       save: (chat) => db.chats().save(chat),
+    },
+    members: {
+      isMember: (roomId, userId) => db.members().findOne({ where: { roomId, userId } }).then((row) => row !== null),
     },
   };
 }

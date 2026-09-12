@@ -1,6 +1,8 @@
+import { join } from "node:path";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  outputFileTracingRoot: import.meta.dirname,
+  outputFileTracingRoot: join(import.meta.dirname, "..", ".."),
 };
 
 export default nextConfig;

@@ -1,5 +1,11 @@
 import type { PersistedShape, Shape, EditPermission } from "@repo/shared-types";
-import type { UserRepository, RoomRepository, ShapeRepository, ChatRepository } from "@repo/http-backend/src/application/repositories";
+import type {
+  UserRepository,
+  RoomRepository,
+  ShapeRepository,
+  ChatRepository,
+  MemberRepository,
+} from "@repo/http-backend/src/application/repositories";
 import { setContainer, type Container } from "@repo/http-backend/src/application/container";
 
 interface TestUser {
@@ -48,12 +54,30 @@ class MemoryRoomRepository implements RoomRepository {
   private rooms: Map<number, TestRoom> = new Map();
   private roomsBySlug: Map<string, TestRoom> = new Map();
   private nextId = 1;
+  private memberRoomIds: Map<string, number[]> = new Map();
+
+  setMembersData(data: Map<string, number[]>): void {
+    this.memberRoomIds = data;
+  }
 
   async findById(id: number) {
     return this.rooms.get(id) || null;
   }
   async findBySlug(slug: string) {
     return this.roomsBySlug.get(slug) || null;
+  }
+  async findByAdminId(adminId: string) {
+    const rooms = [...this.rooms.values()]
+      .filter((room) => room.adminId === adminId)
+      .sort((a, b) => b.id - a.id);
+    return rooms;
+  }
+  async findAccessibleByUser(userId: string) {
+    const memberRoomIds = new Set(this.memberRoomIds.get(userId) ?? []);
+    const rooms = [...this.rooms.values()]
+      .filter((room) => room.adminId === userId || memberRoomIds.has(room.id))
+      .sort((a, b) => b.id - a.id);
+    return rooms;
   }
   async create(data: { slug: string; adminId?: string }) {
     const id = this.nextId++;
@@ -67,6 +91,41 @@ class MemoryRoomRepository implements RoomRepository {
     if (!room) return null;
     room.editPermission = editPermission;
     return room;
+  }
+}
+
+class MemoryMemberRepository implements MemberRepository {
+  private data: Map<string, number[]> = new Map();
+  private emails: Map<string, string> = new Map();
+
+  setEmails(data: Map<string, string>): void {
+    this.emails = data;
+  }
+
+  exportData(): Map<string, number[]> {
+    return this.data;
+  }
+
+  async add(roomId: number, userId: string): Promise<void> {
+    const current = this.data.get(userId) ?? [];
+    if (!current.includes(roomId)) this.data.set(userId, [...current, roomId]);
+  }
+  async remove(roomId: number, userId: string): Promise<void> {
+    this.data.set(userId, (this.data.get(userId) ?? []).filter((id) => id !== roomId));
+  }
+  async isMember(roomId: number, userId: string): Promise<boolean> {
+    return (this.data.get(userId) ?? []).includes(roomId);
+  }
+  async findUserIdsForRoom(roomId: number): Promise<string[]> {
+    const result: string[] = [];
+    for (const [userId, roomIds] of this.data) {
+      if (roomIds.includes(roomId)) result.push(userId);
+    }
+    return result;
+  }
+  async findEmailsForRoom(roomId: number): Promise<{ userId: string; email: string }[]> {
+    const userIds = await this.findUserIdsForRoom(roomId);
+    return userIds.map((userId) => ({ userId, email: this.emails.get(userId) ?? userId }));
   }
 }
 
@@ -130,11 +189,15 @@ class MemoryChatRepository implements ChatRepository {
 }
 
 export function createMemoryContainer(): Container {
+  const memberRepository = new MemoryMemberRepository();
+  const roomRepository = new MemoryRoomRepository();
+  roomRepository.setMembersData(memberRepository.exportData());
   return {
     users: new MemoryUserRepository(),
-    rooms: new MemoryRoomRepository(),
+    rooms: roomRepository,
     shapes: new MemoryShapeRepository(),
     chats: new MemoryChatRepository(),
+    members: memberRepository,
   };
 }
 

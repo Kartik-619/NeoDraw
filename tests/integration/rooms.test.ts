@@ -95,6 +95,36 @@ describe("Room creation", () => {
   });
 });
 
+describe("Room members", () => {
+  it("adds members and reports membership", async () => {
+    const room = await container.rooms.create({ slug: "member-room", adminId: "owner-1" });
+    const user = await container.users.create({ email: "member@x.com", password: "12345678", name: "M" });
+
+    await container.members.add(room.id, user.id);
+    expect(await container.members.isMember(room.id, user.id)).toBe(true);
+    expect(await container.members.isMember(room.id, "nobody")).toBe(false);
+
+    const ids = await container.members.findUserIdsForRoom(room.id);
+    expect(ids).toEqual([user.id]);
+
+    await container.members.remove(room.id, user.id);
+    expect(await container.members.isMember(room.id, user.id)).toBe(false);
+  });
+
+  it("lists accessible rooms as owner or member", async () => {
+    const ownerRoom = await container.rooms.create({ slug: "owned-room", adminId: "owner-1" });
+    const sharedRoom = await container.rooms.create({ slug: "shared-room", adminId: "other-owner" });
+    await container.members.add(sharedRoom.id, "owner-1");
+
+    const accessible = await container.rooms.findAccessibleByUser("owner-1");
+    const slugs = accessible.map((r) => r.slug);
+    expect(slugs).toContain(ownerRoom.slug);
+    expect(slugs).toContain(sharedRoom.slug);
+
+    expect(await container.rooms.findAccessibleByUser("stranger")).not.toContainEqual(expect.objectContaining({ slug: ownerRoom.slug }));
+  });
+});
+
 describe("User creation", () => {
   it("creates and finds users by email", async () => {
     const { id } = await container.users.create({ email: "test@test.com", password: "hashed", name: "Test" });
