@@ -39,8 +39,13 @@ export function shapesToSvg(shapes: PersistedShape[]): string {
         const d = shape.points.map((p, i) => `${i === 0 ? "M" : "L"}${round(p.x)},${round(p.y)}`).join(" ");
         return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
       }
-      case "text":
-        return `<text x="${round(shape.x)}" y="${round(shape.y)}" font-size="${shape.fontSize}" fill="${color}" font-family="system-ui, sans-serif">${escapeXml(shape.text)}</text>`;
+      case "text": {
+        const lines = shape.text.split("\n");
+        const inner = lines
+          .map((line, i) => (i === 0 ? escapeXml(line) : `<tspan x="${round(shape.x)}" dy="${round(shape.fontSize * 1.2)}">${escapeXml(line)}</tspan>`))
+          .join("");
+        return `<text x="${round(shape.x)}" y="${round(shape.y)}" font-size="${shape.fontSize}" fill="${color}" font-family="system-ui, sans-serif">${inner}</text>`;
+      }
     }
   });
 
@@ -99,8 +104,11 @@ function shapeBounds(shape: PersistedShape): { x: number; y: number; w: number; 
       }
       return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     }
-    case "text":
-      return { x: shape.x, y: shape.y - shape.fontSize, w: shape.text.length * shape.fontSize * 0.6, h: shape.fontSize };
+    case "text": {
+      const lines = shape.text.split("\n");
+      const maxLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+      return { x: shape.x, y: shape.y - shape.fontSize, w: maxLength * shape.fontSize * 0.6, h: lines.length * shape.fontSize * 1.2 };
+    }
     default:
       return null;
   }

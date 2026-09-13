@@ -7,6 +7,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 4;
 
 const PRESET_COLORS = ["#000000", "#f5564e", "#fecb2f", "#4cc9f0", "#05ce81", "#a78bfa"];
+const TEXT_FONT_SIZE = 20;
 
 export interface HistoryState {
   canUndo: boolean;
@@ -48,6 +49,9 @@ export class Game {
   private eraserPrevX = 0;
   private eraserPrevY = 0;
   private freehandPoints: Point[] = [];
+  private textEditor: HTMLTextAreaElement | null = null;
+  private textEditorWorldX = 0;
+  private textEditorWorldY = 0;
   private destroyed = false;
   onHistoryChange: (() => void) | null = null;
 
@@ -82,6 +86,8 @@ export class Game {
   destroy(): void {
     this.destroyed = true;
     this.removeListeners();
+    this.textEditor?.remove();
+    this.textEditor = null;
   }
 
   resize(): void {
@@ -94,6 +100,7 @@ export class Game {
 
   setTool(tool: Tool): void {
     if (this.tool !== tool) this.cancelActiveGesture();
+    this.commitTextEditor();
     this.tool = tool;
     this.selectedShapeId = null;
     this.draw();
@@ -113,6 +120,7 @@ export class Game {
 
   setReadOnly(readOnly: boolean): void {
     this.readOnly = readOnly;
+    this.commitTextEditor();
     if (readOnly) {
       this.isDrawing = false;
       this.isDragging = false;
@@ -317,6 +325,7 @@ export class Game {
     if (this.isDrawing) {
       this.drawPreview();
     }
+    this.layoutTextEditor();
   }
 
   private clearCanvas(): void {
@@ -362,12 +371,19 @@ export class Game {
         buildFreehandPath(this.ctx, shape.points);
         this.ctx.stroke();
         break;
-      case "text":
+      case "text": {
+        const lines = shape.text.split("\n");
+        const lineHeight = shape.fontSize * 1.2;
         this.ctx.fillStyle = color;
         this.ctx.font = `${shape.fontSize}px system-ui`;
-        this.ctx.fillText(shape.text, shape.x, shape.y);
+        this.ctx.textBaseline = "alphabetic";
+        for (let i = 0; i < lines.length; i++) {
+          this.ctx.fillText(lines[i] ?? "", shape.x, shape.y + i * lineHeight);
+        }
         this.ctx.fillStyle = "#ffffff";
-        break;    }
+        break;
+      }
+    }
   }
 
   private drawSelectionBox(shape: PersistedShape): void {
@@ -462,7 +478,7 @@ export class Game {
         return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
       }
       case "text":
-        return { x: shape.x, y: shape.y - shape.fontSize, w: shape.text.length * shape.fontSize * 0.6, h: shape.fontSize };
+        return textShapeBounds(shape);
       default:
         return null;
     }
@@ -516,6 +532,134 @@ export class Game {
     this.socket.send(JSON.stringify({ type: "shape_delete_many", roomId: this.roomId, shapeIds }));
   }
 
+  // --- Text editor ---
+
+  private isTextEditing(): boolean {
+    return this.textEditor !== null && this.textEditor.style.display !== "none";
+  }
+
+  private ensureTextEditor(): HTMLTextAreaElement {
+    const existing = this.textEditor;
+    if (existing) return existing;
+
+    const parent = this.canvas.parentElement;
+    if (!parent) throw new Error("Canvas parent element not found");
+
+    const el = document.createElement("textarea");
+    el.setAttribute("aria-label", "Text on canvas");
+    el.style.position = "absolute";
+    el.style.zIndex = "10";
+    el.style.boxSizing = "border-box";
+    el.style.padding = "0";
+    el.style.margin = "0";
+    el.style.border = "1px dashed #6366f1";
+    el.style.background = "rgba(255,255,255,0.85)";
+    el.style.outline = "none";
+    el.style.fontFamily = "system-ui, sans-serif";
+    el.style.lineHeight = "1.2";
+    el.style.whiteSpace = "pre";
+    el.style.overflow = "hidden";
+    el.style.resize = "none";
+    el.style.minWidth = "140px";
+    el.style.minHeight = "24px";
+    el.style.display = "none";
+    el.addEventListener("input", () => this.autoResizeTextEditor());
+    el.addEventListener("keydown", (e) => this.handleTextEditorKeyDown(e));
+    el.addEventListener("blur", () => this.commitTextEditor());
+    parent.appendChild(el);
+    this.textEditor = el;
+    return el;
+  }
+
+  private openTextEditor(x: number, y: number): void {
+    this.commitTextEditor();
+    const el = this.ensureTextEditor();
+    this.textEditorWorldX = x;
+    this.textEditorWorldY = y;
+    el.value = "";
+    el.style.display = "block";
+    el.style.color = this.color;
+    this.layoutTextEditor();
+    this.autoResizeTextEditor();
+    el.focus();
+    requestAnimationFrame(() => {
+      if (this.isTextEditing() && document.activeElement !== el) el.focus();
+    });
+  }
+
+  private hideTextEditor(): void {
+    const el = this.textEditor;
+    if (!el) return;
+    el.style.display = "none";
+    el.value = "";
+  }
+
+  private commitTextEditor(): void {
+    const el = this.textEditor;
+    if (!el || el.style.display === "none") return;
+
+    const x = this.textEditorWorldX;
+    const y = this.textEditorWorldY;
+    const color = this.color;
+    const text = el.value.replace(/^\n+/, "").replace(/[ \t]+\n/g, "\n").replace(/\s+$/, "");
+    this.hideTextEditor();
+    if (!text) return;
+
+    const shape: PersistedShape = {
+      id: newId(),
+      userId: "",
+      type: "text",
+      x,
+      y,
+      text,
+      fontSize: TEXT_FONT_SIZE,
+      color,
+    };
+    this.upsertShape(shape);
+    this.sendShape(shape);
+    this.history.push({ kind: "add", shape });
+    this.notifyHistoryChange();
+    this.draw();
+  }
+
+  private cancelTextEditor(): void {
+    this.hideTextEditor();
+  }
+
+  private layoutTextEditor(): void {
+    const el = this.textEditor;
+    if (!el || el.style.display === "none") return;
+    const screen = this.worldToScreen(this.textEditorWorldX, this.textEditorWorldY);
+    const fontSizePx = TEXT_FONT_SIZE * this.zoom;
+    el.style.left = `${screen.x}px`;
+    el.style.top = `${screen.y - fontSizePx}px`;
+    el.style.fontSize = `${fontSizePx}px`;
+    el.style.color = this.color;
+  }
+
+  private autoResizeTextEditor(): void {
+    const el = this.textEditor;
+    if (!el || el.style.display === "none") return;
+    const minWidth = parseFloat(el.style.minWidth || "0");
+    const minHeight = parseFloat(el.style.minHeight || "0");
+    el.style.width = `${Math.max(minWidth, el.scrollWidth + 1)}px`;
+    el.style.height = `${Math.max(minHeight, el.scrollHeight + 1)}px`;
+  }
+
+  private handleTextEditorKeyDown(e: KeyboardEvent): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.cancelTextEditor();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      e.stopPropagation();
+      this.commitTextEditor();
+    }
+  }
+
   // --- Mouse handlers ---
 
   private mouseDownHandler(e: MouseEvent): void {
@@ -564,24 +708,8 @@ export class Game {
     }
 
     if (this.tool === "text") {
-      const text = window.prompt("Enter text:");
-      if (text) {
-        const shape: PersistedShape = {
-          id: newId(),
-          userId: "",
-          type: "text",
-          x,
-          y,
-          text,
-          fontSize: 20,
-          color: this.color,
-        };
-        this.upsertShape(shape);
-        this.sendShape(shape);
-        this.history.push({ kind: "add", shape });
-        this.notifyHistoryChange();
-        this.draw();
-      }
+      e.preventDefault();
+      this.openTextEditor(x, y);
       return;
     }
 
@@ -803,6 +931,7 @@ export class Game {
   }
 
   private keyDownHandler(e: KeyboardEvent): void {
+    if (this.isTextEditing()) return;
     const metaPressed = e.ctrlKey || e.metaKey;
 
     if (e.key === " ") {
@@ -858,6 +987,7 @@ export class Game {
   }
 
   private keyUpHandler(e: KeyboardEvent): void {
+    if (this.isTextEditing()) return;
     if (e.key === " ") {
       this.spaceHeld = false;
     }
@@ -1067,9 +1197,15 @@ function shapeIntersectsRect(shape: PersistedShape, minX: number, minY: number, 
   }
 }
 
+function textShapeBounds(shape: { x: number; y: number; text: string; fontSize: number }): { x: number; y: number; w: number; h: number } {
+  const lines = shape.text.split("\n");
+  const maxLength = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  return { x: shape.x, y: shape.y - shape.fontSize, w: maxLength * shape.fontSize * 0.6, h: lines.length * shape.fontSize * 1.2 };
+}
+
 function getShapeBoundsStatic(shape: Extract<PersistedShape, { type: "rect" } | { type: "text" }>): { x: number; y: number; w: number; h: number } {
   if (shape.type === "text") {
-    return { x: shape.x, y: shape.y - shape.fontSize, w: shape.text.length * shape.fontSize * 0.6, h: shape.fontSize };
+    return textShapeBounds(shape);
   }
   return {
     x: Math.min(shape.x, shape.x + shape.width),
