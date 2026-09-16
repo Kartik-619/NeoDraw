@@ -42,7 +42,163 @@ per-room.
 
 ---
 
-## 2. Monorepo layout (pnpm workspaces + Turborepo)
+## 2. Feature inventory
+
+This section catalogs the features currently implemented in the codebase, grouped by
+functional area. All capabilities below exist in the working code (see the app modules).
+
+### 2.1 Accounts & authentication
+
+- **Sign up / sign in** — email + password (min 8 chars) via `POST /signup` /
+  `POST /signIn`; bcrypt-hashed passwords; 409 "Email already in use" on duplicates,
+  401 "Invalid credentials" on bad logins.
+- **JWT sessions (7-day)** — issued at sign in and carried two ways: an `httpOnly`
+  cookie (`sameSite=lax`) for REST, plus a `Bearer` header for REST and a `?token=`
+  query param for the WebSocket handshake. The frontend keeps the token in
+  `localStorage` and authenticates with the Bearer header.
+- **Current-user lookup** — `GET /user/me` returns `{id, name, email}`; the navbar
+  identity chip is built from it.
+- **Auto-provisioned workspace** — signing in creates a personal board
+  `{userId}-workspace` if it does not exist, so every account starts with a board.
+
+### 2.2 Boards (rooms)
+
+- **Create a board** — the dashboard "New Canvas" button calls `POST /room`, which
+  assigns a `room-<uuid>[:8]` slug and marks the caller as admin.
+- **Board list** — `GET /rooms` returns the boards the user owns or is a member of
+  (most recently updated first). The dashboard shows per-board icons and badges for
+  "Admin only edits", "Anyone can edit", and "Shared with you", plus a loading
+  skeleton and an empty state.
+- **Join a board** — `/joinroom` accepts a slug or a full URL (parsed for the segment
+  after `/canvas/`) and routes to `/canvas/<slug>`.
+- **Access model** — a board is readable only by its admin or explicit members
+  (`RoomMember`); anyone else gets 404 (HTTP) or `join_denied` (WebSocket).
+- **Edit permissions** — two levels: `anyone` (every member can edit) and `admin`
+  (only the owner). The owner switches it via the Share dialog / `PATCH .../permissions`.
+- **Member management (owner only)** — invite by email, list members (id + email),
+  and remove members; the owner cannot be removed. Non-owners receive 403.
+
+### 2.3 Real-time collaboration
+
+- **Live shape sync** — every shape add/update/delete/bulk-delete is persisted to
+  PostgreSQL and then broadcast to the room over WebSocket; clients apply the changes
+  idempotently, keyed by client-generated UUID shape ids.
+- **Presence** — `user_joined` / `user_left` broadcast the deduplicated member list
+  (multiple sockets from one user collapse to a single member); the toolbar shows
+  "{n} online".
+- **Snapshot on join** — `joined_room` delivers room info, members, and the full shape
+  history; the frontend additionally pre-loads shapes over HTTP and merges them with
+  live frames (idempotent by id) so reconnects never lose state.
+- **Room isolation** — broadcasts only reach sockets that have joined the room; join
+  requires admin/membership; shape ops from non-members, against a non-existent room,
+  or without edit permission are silently ignored.
+- **Reconnection** — after a socket drop the client reconnects every 2 s (up to 10
+  attempts), re-joins on open, and remounts the canvas via a `connectionEpoch` key; a
+  "Reconnecting… (n)" pill reports progress, and a permanent "Connection lost. Please
+  refresh." screen appears after the attempts are exhausted. Denied joins surface
+  "You don't have access to this canvas".
+
+### 2.4 Drawing tools
+
+| Tool | Behavior |
+|---|---|
+| `rect` | Drag to draw an axis-aligned rectangle. |
+| `circle` | Drag to draw a circle from the drag's bounding box (radius = half the diagonal). |
+| `diamond` | Drag to draw a diamond (rotated square). |
+| `pencil` | Drag to draw a straight line segment between start and end. |
+| `freehand` | Freely draw a smoothed polyline (points thinned by distance; an empty click yields a dot). |
+| `text` | Click to drop an on-canvas text input at that spot (see 2.5). |
+| `select` | Click a shape to select it, then drag to move it. |
+| `eraser` | Click or drag to delete intersecting shapes in bulk. |
+
+- **Stroke color** — six preset colors plus a custom HTML color picker; the color is
+  persisted per shape and applies to every tool, including text.
+- **Live preview** — dashed gray preview outlines while dragging rect/circle/diamond/
+  pencil/freehand, and a red translucent sweep box for the eraser.
+
+### 2.5 Text tool
+
+- **On-canvas typing** — clicking the canvas with the text tool opens an auto-growing
+  dashed-border `<textarea>` right at the click point, focused and ready to type (no
+  browser prompt dialog).
+- **Multiline** — Enter inserts a new line; `Ctrl`/`Cmd`+Enter commits; Escape cancels;
+  clicking elsewhere commits.
+- **Visual fidelity** — the editor uses the current stroke color, stays anchored to the
+  world coordinate where you clicked, scales its font with zoom, and repositions while
+  panning/zooming. The committed text renders as multiple canvas `fillText` lines
+  (font-size 20, line-height 1.2×); selection and eraser bounds account for line count.
+
+### 2.6 Selection, editing & history
+
+- **Hit-testing** — the select tool finds the topmost shape under the pointer via
+  bounding-box tests in reverse z-order.
+- **Drag to move** — movement is applied per shape type (rect/text shift `x`/`y`,
+  circle/diamond shift center, pencil shifts both endpoints, freehand shifts all points);
+  a history entry is recorded only when the geometry actually changed.
+- **Delete** — `Delete` or `Backspace` removes the selected shape.
+- **Undo / redo** — toolbar buttons plus `Ctrl`/`Cmd`+Z (undo), `Ctrl`/`Cmd`+Shift+Z and
+  `Ctrl`/`Cmd`+Y (redo); capacity 100 operations (FIFO), redo stack cleared by any new
+  action. History is collaboration-aware: undoing/redoing replays the compensating
+  operation over WebSocket so other members see the effect.
+
+### 2.7 Viewport navigation
+
+- **Zoom** — toolbar +/− buttons (×1.25 around the canvas center), mouse-wheel zoom
+  anchored at the cursor, `Ctrl`/`Cmd`+0 or the % button to reset; range 0.1×–4× with
+  the current value shown in the toolbar.
+- **Pan** — middle-mouse drag or Space + left-drag.
+
+### 2.8 View-only mode
+
+- When a board's edit permission is `admin` and the viewer is not the owner, the board
+  opens in **view-only**: editing tools, undo/redo and color controls are disabled while
+  zoom and pan still work; "View only" and hint pills are shown.
+
+### 2.9 Sharing
+
+- **Copy Link** — copies the current board URL to the clipboard with a temporary
+  "Copied!" state.
+- **Share dialog** — shows a copyable room URL and, for the admin, an invite-by-email
+  field, a member list with "Remove" per member, and permission radios ("All members can
+  edit" ↔ "Only the owner can edit") with a "Saving…" indicator. Non-admins get a
+  read-only notice.
+
+### 2.10 Export
+
+- **PNG** — current canvas frame via `canvas.toBlob`, downloaded as `<slug>.png`.
+- **SVG** — hand-generated SVG with an auto-computed viewBox (bounds + 20 px padding),
+  one element per shape (multiline text exported as `<tspan>` runs, XML-escaped),
+  downloaded as `<slug>.svg`.
+
+### 2.11 Chat
+
+- Backend-supported end to end: messages are created over REST
+  (`POST /rooms/:slug/chat`), broadcast live over WebSocket, and persisted for history
+  (`GET` endpoints). *Note: the frontend currently ships no chat UI wired to these
+  endpoints.*
+
+### 2.12 Persistence & resilience
+
+- All state is durable in PostgreSQL: `User`, `Room`, `Chat`, `RoomShape` (shape bodies
+  as jsonb), and `RoomMember`.
+- Client-generated UUID shape ids make add/update/delete operations idempotent and safe
+  against reconnects and concurrent sessions.
+- REST and WebSocket stay consistent because the WebSocket server persists through the
+  same repositories the REST app uses (persistence-before-broadcast).
+
+### 2.13 Page & navigation chrome
+
+- Marketing landing page — animated canvas mockup hero, marquee ticker, feature cards,
+  stats band, "how it works" timeline, and CTAs.
+- Auth pages (sign in/sign up with tabs and a password-visibility toggle), dashboard,
+  and join-room page.
+- Scene-fade SPA navigation driven by `neodraw:fade` custom events (navbar + landing
+  CTAs), a sticky responsive navbar with auth state and a mobile menu.
+- Per-page loading skeletons and error boundaries with "Try again" recovery.
+
+---
+
+## 3. Monorepo layout (pnpm workspaces + Turborepo)
 
 ```
 NeoDraw/
@@ -70,7 +226,7 @@ shape validator, so a malformed/outdated client message is rejected consistently
 
 ---
 
-## 3. Layering (how Clean Architecture is applied in practice)
+## 4. Layering (how Clean Architecture is applied in practice)
 
 The backends follow a lightweight Clean Architecture / SOLID structure. The pattern is
 identical in `http-backend` and `ws-backend`:
@@ -104,7 +260,7 @@ interfaces (ISP); `infrastructure/repositories/index.ts` implements them with Ty
 
 ---
 
-## 4. Persistence (`@repo/db`)
+## 5. Persistence (`@repo/db`)
 
 Four entities, auto-synced on startup (`synchronize: true`, no migration files):
 
@@ -136,7 +292,7 @@ function toPersistedShape(shape: RoomShape): PersistedShape {
 
 ---
 
-## 5. Wire contracts (`@repo/shared-types`)
+## 6. Wire contracts (`@repo/shared-types`)
 
 Client ↔ WS-backend messaging (also used by the HTTP shape endpoints):
 
@@ -202,7 +358,7 @@ guard shared by both backends and used by the frontend when parsing HTTP respons
 
 ---
 
-## 6. Frontend architecture
+## 7. Frontend architecture
 
 ```
 apps/neodraw-frontend/
@@ -243,7 +399,7 @@ arriving later via WS is still merged on top (idempotent by id).
 
 ---
 
-## 7. Event flow and guarantees
+## 8. Event flow and guarantees
 
 The collaboration model is **CRDT-in-spirit**: the client generates a UUID per shape,
 the server persists it with that id, and every mutation (`add/update/delete/delete-many`)
@@ -268,7 +424,7 @@ Correctness guarantees enforced in code:
 
 ---
 
-## 8. Testing strategy (`tests/`)
+## 9. Testing strategy (`tests/`)
 
 Vitest, two suites under `tests/` (package `ny-tests`):
 
@@ -286,7 +442,7 @@ against the shared types directly.
 
 ---
 
-## 9. Extensibility
+## 10. Extensibility
 
 The architecture is deliberately easy to extend:
 
@@ -302,7 +458,7 @@ The architecture is deliberately easy to extend:
 
 ---
 
-## 10. Common commands
+## 11. Common commands
 
 | Command | Meaning |
 |---|---|
